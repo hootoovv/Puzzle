@@ -5,5 +5,8 @@
 演示：  
 ![网页截图](screenshot.jpg)
 
+tools目录下为agent沙箱内生成图片和文档的工具脚本，只记录未验证是否可正常运行。
+de-puzzle目录下为AI生成的puzzle解算器，解算效果不理想，说明加密算法效果良好。
+
 构思及测试：toohoovv  
 论文撰写及代码实现：GLM 5.1 Agent@z.ai

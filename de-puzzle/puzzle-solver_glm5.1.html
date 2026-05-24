@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Puzzle 图片还原工具</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Microsoft YaHei','PingFang SC',sans-serif;background:#0d1117;color:#c9d1d9;height:100vh;display:flex;flex-direction:column;overflow:hidden;user-select:none;}
+
+/* ===== Top Bar ===== */
+#topbar{background:#161b22;border-bottom:1px solid #30363d;padding:10px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;flex-wrap:wrap;}
+#topbar .param-group{display:flex;align-items:center;gap:6px;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:4px 10px;}
+#topbar label{font-size:13px;color:#8b949e;white-space:nowrap;}
+#topbar input[type=number]{width:60px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#58a6ff;padding:4px 6px;font-size:13px;text-align:center;}
+#topbar input[type=number]:focus{outline:none;border-color:#58a6ff;}
+#topbar .sep{color:#484f58;font-size:16px;font-weight:bold;}
+#topbar .block-info{font-size:12px;color:#8b949e;margin-left:2px;}
+
+.btn{padding:6px 16px;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.btn-primary{background:linear-gradient(135deg,#238636,#2ea043);color:#fff;}
+.btn-primary:hover{background:linear-gradient(135deg,#2ea043,#3fb950);box-shadow:0 0 12px rgba(46,160,67,.4);}
+.btn-primary:disabled{background:#21262d;color:#484f58;cursor:not-allowed;box-shadow:none;}
+.btn-secondary{background:linear-gradient(135deg,#1f6feb,#388bfd);color:#fff;}
+.btn-secondary:hover{background:linear-gradient(135deg,#388bfd,#58a6ff);box-shadow:0 0 12px rgba(56,139,253,.4);}
+.btn-secondary:disabled{background:#21262d;color:#484f58;cursor:not-allowed;box-shadow:none;}
+.btn-save{background:linear-gradient(135deg,#8957e5,#a371f7);color:#fff;}
+.btn-save:hover{background:linear-gradient(135deg,#a371f7,#bc8cff);box-shadow:0 0 12px rgba(163,113,247,.4);}
+.btn-save:disabled{background:#21262d;color:#484f58;cursor:not-allowed;box-shadow:none;}
+
+.toggle-group{display:flex;align-items:center;gap:6px;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:4px 10px;cursor:pointer;}
+.toggle-group input[type=checkbox]{display:none;}
+.toggle-track{width:36px;height:20px;background:#30363d;border-radius:10px;position:relative;transition:background .3s;}
+.toggle-track::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#8b949e;border-radius:50%;transition:all .3s;}
+.toggle-group input:checked+.toggle-track{background:#1f6feb;}
+.toggle-group input:checked+.toggle-track::after{left:18px;background:#fff;}
+.toggle-label{font-size:13px;color:#8b949e;}
+
+/* ===== Content ===== */
+#content{flex:1;display:flex;overflow:hidden;padding:10px;gap:10px;}
+
+.panel{background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;}
+#leftPanel{width:42%;min-width:280px;}
+#rightPanel{flex:1;min-width:300px;}
+
+.panel-header{padding:8px 14px;border-bottom:1px solid #30363d;font-size:12px;color:#8b949e;font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center;}
+.panel-body{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+
+/* ===== Drop Zone ===== */
+#dropZone{position:absolute;inset:10px;border:2px dashed #30363d;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .3s;z-index:2;}
+#dropZone:hover,#dropZone.drag-over{border-color:#58a6ff;background:rgba(56,139,253,.06);}
+#dropZone .icon{font-size:48px;color:#30363d;margin-bottom:12px;}
+#dropZone .text{font-size:14px;color:#484f58;}
+#dropZone .subtext{font-size:12px;color:#30363d;margin-top:6px;}
+#dropZone.hidden{display:none;}
+
+/* ===== Canvas ===== */
+.panel-body canvas{max-width:100%;max-height:100%;display:block;}
+
+/* ===== Result placeholder ===== */
+#resultPlaceholder{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#30363d;}
+#resultPlaceholder .icon{font-size:64px;margin-bottom:12px;}
+#resultPlaceholder .text{font-size:14px;}
+
+/* ===== Loading Overlay ===== */
+#loadingOverlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:1000;}
+#loadingOverlay.active{display:flex;}
+.loading-box{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:28px 40px;text-align:center;}
+.loading-box .spinner{width:40px;height:40px;border:3px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-box .msg{font-size:14px;color:#8b949e;}
+.loading-box .progress{font-size:12px;color:#484f58;margin-top:6px;}
+
+/* ===== Toast ===== */
+#toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(80px);background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 22px;font-size:13px;color:#c9d1d9;z-index:2000;transition:transform .3s ease,opacity .3s;opacity:0;pointer-events:none;}
+#toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+#toast.success{border-color:#238636;color:#3fb950;}
+#toast.error{border-color:#da3633;color:#f85149;}
+#toast.info{border-color:#1f6feb;color:#58a6ff;}
+
+/* ===== Highlight Block ===== */
+.highlight-block{position:absolute;border:2px solid #f0883e;border-radius:2px;pointer-events:none;z-index:10;box-shadow:0 0 8px rgba(240,136,62,.4);}
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div id="topbar">
+  <div class="param-group">
+    <label>块大小</label>
+    <input type="number" id="inputBlockW" min="8" value="0" disabled>
+    <span class="sep">×</span>
+    <input type="number" id="inputBlockH" min="8" value="0" disabled>
+    <span class="block-info" id="blockInfo"></span>
+  </div>
+  <button class="btn btn-primary" id="btnDetect" disabled>检测块大小</button>
+  <button class="btn btn-secondary" id="btnRestore" disabled>还原图片</button>
+  <label class="toggle-group" id="toggleManual">
+    <input type="checkbox" id="chkManual" disabled>
+    <div class="toggle-track"></div>
+    <span class="toggle-label">手动调整</span>
+  </label>
+  <button class="btn btn-save" id="btnSave" disabled>保存图片</button>
+</div>
+
+<!-- Main Content -->
+<div id="content">
+  <!-- Left Panel: Source -->
+  <div class="panel" id="leftPanel">
+    <div class="panel-header"><span>原图（Puzzle）</span><span id="srcDimInfo"></span></div>
+    <div class="panel-body" id="leftBody">
+      <div id="dropZone">
+        <div class="icon">&#128464;</div>
+        <div class="text">点击或拖拽图片到此处</div>
+        <div class="subtext">支持 JPG / PNG 格式</div>
+      </div>
+      <canvas id="srcCanvas" style="display:none;"></canvas>
+    </div>
+  </div>
+
+  <!-- Right Panel: Result -->
+  <div class="panel" id="rightPanel">
+    <div class="panel-header"><span>还原结果</span><span id="resultInfo"></span></div>
+    <div class="panel-body" id="rightBody">
+      <div id="resultPlaceholder">
+        <div class="icon">&#128444;</div>
+        <div class="text">还原后的图片将显示在此处</div>
+      </div>
+      <canvas id="resultCanvas" style="display:none;"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="fileInput" accept="image/*" style="display:none;">
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <div class="msg" id="loadingMsg">处理中...</div>
+    <div class="progress" id="loadingProgress"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ============================================================
+//  State
+// ============================================================
+let srcImg = null;          // Source Image object
+let srcImageData = null;    // ImageData of source
+let blockW = 0, blockH = 0;
+let gridCols = 0, gridRows = 0;
+let blockDataList = [];     // [{data: Uint8ClampedArray, idx: number}]
+let blockCanvases = [];     // Offscreen canvas per block
+let currentGrid = [];       // [row][col] = block index
+let isManual = false;
+let isDragging = false;
+let dragSrc = null;         // {row, col}
+let dragCurrent = null;     // Current mouse position in canvas coords
+let animating = false;
+let resultScale = 1;
+let resultOffsetX = 0, resultOffsetY = 0;
+
+// ============================================================
+//  DOM References
+// ============================================================
+const $ = id => document.getElementById(id);
+const srcCanvas = $('srcCanvas'), srcCtx = srcCanvas.getContext('2d');
+const resultCanvas = $('resultCanvas'), resultCtx = resultCanvas.getContext('2d');
+const dropZone = $('dropZone');
+const fileInput = $('fileInput');
+const inputBlockW = $('inputBlockW'), inputBlockH = $('inputBlockH');
+const btnDetect = $('btnDetect'), btnRestore = $('btnRestore'), btnSave = $('btnSave');
+const chkManual = $('chkManual');
+
+// ============================================================
+//  Initialization
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    setupDropZone();
+    setupButtons();
+    setupManualMode();
+});
+
+// ============================================================
+//  Toast
+// ============================================================
+let toastTimer = null;
+function showToast(msg, type='info', duration=2500) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'show ' + type;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.className = '', duration);
+}
+
+// ============================================================
+//  Loading Overlay
+// ============================================================
+function showLoading(msg, progress='') {
+    $('loadingMsg').textContent = msg;
+    $('loadingProgress').textContent = progress;
+    $('loadingOverlay').classList.add('active');
+}
+function updateLoading(msg, progress='') {
+    $('loadingMsg').textContent = msg;
+    $('loadingProgress').textContent = progress;
+}
+function hideLoading() {
+    $('loadingOverlay').classList.remove('active');
+}
+
+// ============================================================
+//  Image Loading
+// ============================================================
+function setupDropZone() {
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => { if (e.target.files[0]) loadImage(e.target.files[0]); });
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) loadImage(file);
+        else showToast('请拖入图片文件', 'error');
+    });
+}
+
+function loadImage(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+            srcImg = img;
+            // Draw source
+            drawSourceImage();
+            // Get ImageData
+            const c = document.createElement('canvas');
+            c.width = img.width; c.height = img.height;
+            const cx = c.getContext('2d');
+            cx.drawImage(img, 0, 0);
+            srcImageData = cx.getImageData(0, 0, img.width, img.height);
+            // Reset state
+            blockW = 0; blockH = 0;
+            gridCols = 0; gridRows = 0;
+            blockDataList = []; blockCanvases = []; currentGrid = [];
+            inputBlockW.value = 0; inputBlockH.value = 0;
+            $('blockInfo').textContent = '';
+            $('srcDimInfo').textContent = `${img.width} × ${img.height}`;
+            // Enable buttons
+            btnDetect.disabled = false;
+            inputBlockW.disabled = false; inputBlockH.disabled = false;
+            btnRestore.disabled = true;
+            chkManual.disabled = true; chkManual.checked = false; isManual = false;
+            btnSave.disabled = true;
+            // Clear result
+            resultCanvas.style.display = 'none';
+            $('resultPlaceholder').style.display = 'flex';
+            $('resultInfo').textContent = '';
+            showToast('图片加载成功', 'success');
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function drawSourceImage() {
+    const body = $('leftBody');
+    const maxW = body.clientWidth - 20;
+    const maxH = body.clientHeight - 20;
+    const scale = Math.min(maxW / srcImg.width, maxH / srcImg.height, 1);
+    srcCanvas.width = Math.round(srcImg.width * scale);
+    srcCanvas.height = Math.round(srcImg.height * scale);
+    srcCtx.drawImage(srcImg, 0, 0, srcCanvas.width, srcCanvas.height);
+    srcCanvas.style.display = 'block';
+    dropZone.classList.add('hidden');
+}
+
+// ============================================================
+//  Block Detection Algorithm
+// ============================================================
+function setupButtons() {
+    btnDetect.addEventListener('click', () => {
+        if (!srcImg) return;
+        showLoading('正在检测 Puzzle 块大小...');
+        // Use setTimeout to allow UI update
+        setTimeout(() => {
+            try {
+                const result = detectBlockSize(srcImageData, srcImg.width, srcImg.height);
+                blockW = result.a; blockH = result.b;
+                gridCols = srcImg.width / blockW;
+                gridRows = srcImg.height / blockH;
+                inputBlockW.value = blockW;
+                inputBlockH.value = blockH;
+                $('blockInfo').textContent = `(${gridCols}×${gridRows} = ${gridCols*gridRows} 块)`;
+                btnRestore.disabled = false;
+                showToast(`检测完成: 块大小 ${blockW} × ${blockH}`, 'success');
+            } catch (err) {
+                showToast('检测失败: ' + err.message, 'error');
+            }
+            hideLoading();
+        }, 50);
+    });
+
+    btnRestore.addEventListener('click', () => {
+        // Read manual values
+        blockW = parseInt(inputBlockW.value) || 0;
+        blockH = parseInt(inputBlockH.value) || 0;
+        if (!srcImg || blockW < 8 || blockH < 8) {
+            showToast('请先设置有效的块大小', 'error'); return;
+        }
+        if (srcImg.width % blockW !== 0 || srcImg.height % blockH !== 0) {
+            showToast('块大小必须能被图片宽高整除', 'error'); return;
+        }
+        gridCols = srcImg.width / blockW;
+        gridRows = srcImg.height / blockH;
+        $('blockInfo').textContent = `(${gridCols}×${gridRows} = ${gridCols*gridRows} 块)`;
+        showLoading('正在还原图片...');
+        setTimeout(() => {
+            try {
+                restorePuzzle();
+                chkManual.disabled = false;
+                btnSave.disabled = false;
+                showToast('还原完成！可开启手动调整修正', 'success');
+            } catch(err) {
+                showToast('还原失败: ' + err.message, 'error');
+            }
+            hideLoading();
+        }, 50);
+    });
+
+    btnSave.addEventListener('click', saveImage);
+
+    inputBlockW.addEventListener('change', () => {
+        blockW = parseInt(inputBlockW.value) || 0;
+        if (srcImg && blockW > 0 && srcImg.width % blockW === 0) {
+            gridCols = srcImg.width / blockW;
+            if (blockH > 0 && srcImg.height % blockH === 0) {
+                $('blockInfo').textContent = `(${gridCols}×${gridRows} = ${gridCols*gridRows} 块)`;
+                btnRestore.disabled = false;
+            }
+        }
+    });
+    inputBlockH.addEventListener('change', () => {
+        blockH = parseInt(inputBlockH.value) || 0;
+        if (srcImg && blockH > 0 && srcImg.height % blockH === 0) {
+            gridRows = srcImg.height / blockH;
+            if (blockW > 0 && srcImg.width % blockW === 0) {
+                $('blockInfo').textContent = `(${gridCols}×${gridRows} = ${gridCols*gridRows} 块)`;
+                btnRestore.disabled = false;
+            }
+        }
+    });
+}
+
+function getDivisors(n) {
+    const divs = [];
+    for (let i = 1; i <= n; i++) {
+        if (n % i === 0) divs.push(i);
+    }
+    return divs;
+}
+
+function detectBlockSize(imageData, width, height) {
+    const data = imageData.data;
+
+    // Step 1: Pre-compute vertical line differences (between col x and col x+1)
+    const vertDiffs = new Float64Array(width - 1);
+    for (let x = 0; x < width - 1; x++) {
+        let sum = 0;
+        for (let y = 0; y < height; y++) {
+            const i1 = (y * width + x) * 4;
+            const i2 = (y * width + x + 1) * 4;
+            sum += Math.abs(data[i1] - data[i2]) +
+                   Math.abs(data[i1+1] - data[i2+1]) +
+                   Math.abs(data[i1+2] - data[i2+2]);
+        }
+        vertDiffs[x] = sum / height;
+    }
+
+    // Step 2: Pre-compute horizontal line differences (between row y and row y+1)
+    const horzDiffs = new Float64Array(height - 1);
+    for (let y = 0; y < height - 1; y++) {
+        let sum = 0;
+        for (let x = 0; x < width; x++) {
+            const i1 = (y * width + x) * 4;
+            const i2 = ((y + 1) * width + x) * 4;
+            sum += Math.abs(data[i1] - data[i2]) +
+                   Math.abs(data[i1+1] - data[i2+1]) +
+                   Math.abs(data[i1+2] - data[i2+2]);
+        }
+        horzDiffs[y] = sum / width;
+    }
+
+    // Step 3: For each candidate block width (divisor of image width),
+    // compute the ratio of boundary-line differences vs non-boundary differences
+    const widthDivs = getDivisors(width).filter(d => d >= 16 && width / d >= 2 && width / d <= 60);
+    const heightDivs = getDivisors(height).filter(d => d >= 16 && height / d >= 2 && height / d <= 60);
+
+    if (widthDivs.length === 0 || heightDivs.length === 0) {
+        throw new Error('无法检测块大小，请手动输入');
+    }
+
+    // Pre-compute width scores
+    const widthScores = new Map();
+    for (const a of widthDivs) {
+        const numBoundaries = width / a - 1;
+        if (numBoundaries === 0) { widthScores.set(a, 0); continue; }
+
+        const boundarySet = new Set();
+        for (let i = 1; i <= numBoundaries; i++) boundarySet.add(i * a - 1);
+
+        let bSum = 0, bCount = 0, nbSum = 0, nbCount = 0;
+        for (let x = 0; x < width - 1; x++) {
+            if (boundarySet.has(x)) { bSum += vertDiffs[x]; bCount++; }
+            else { nbSum += vertDiffs[x]; nbCount++; }
+        }
+        const bAvg = bCount > 0 ? bSum / bCount : 0;
+        const nbAvg = nbCount > 0 ? nbSum / nbCount : 1;
+        widthScores.set(a, nbAvg > 0 ? bAvg / nbAvg : 0);
+    }
+
+    // Pre-compute height scores
+    const heightScores = new Map();
+    for (const b of heightDivs) {
+        const numBoundaries = height / b - 1;
+        if (numBoundaries === 0) { heightScores.set(b, 0); continue; }
+
+        const boundarySet = new Set();
+        for (let j = 1; j <= numBoundaries; j++) boundarySet.add(j * b - 1);
+
+        let bSum = 0, bCount = 0, nbSum = 0, nbCount = 0;
+        for (let y = 0; y < height - 1; y++) {
+            if (boundarySet.has(y)) { bSum += horzDiffs[y]; bCount++; }
+            else { nbSum += horzDiffs[y]; nbCount++; }
+        }
+        const bAvg = bCount > 0 ? bSum / bCount : 0;
+        const nbAvg = nbCount > 0 ? nbSum / nbCount : 1;
+        heightScores.set(b, nbAvg > 0 ? bAvg / nbAvg : 0);
+    }
+
+    // Find best combination
+    let bestScore = -Infinity, bestA = width, bestB = height;
+    for (const a of widthDivs) {
+        const ws = widthScores.get(a);
+        for (const b of heightDivs) {
+            const hs = heightScores.get(b);
+            const score = ws + hs;
+            // Prefer moderate block counts (penalize very many small blocks)
+            const totalBlocks = (width / a) * (height / b);
+            const penalty = totalBlocks > 400 ? 0.5 : 1.0;
+            const finalScore = score * penalty;
+            if (finalScore > bestScore) {
+                bestScore = finalScore;
+                bestA = a; bestB = b;
+            }
+        }
+    }
+
+    return { a: bestA, b: bestB };
+}
+
+// ============================================================
+//  Puzzle Restoration Algorithm
+// ============================================================
+function restorePuzzle() {
+    extractBlocks();
+    const n = blockDataList.length;
+
+    if (n <= 1) {
+        currentGrid = [[0]];
+        renderResult();
+        return;
+    }
+
+    updateLoading('正在计算块间兼容性...', `0 / ${n} 块`);
+
+    // Compute pairwise compatibility
+    // hCompat[i][j]: how well block i's right edge matches block j's left edge
+    // vCompat[i][j]: how well block i's bottom edge matches block j's top edge
+    const hCompat = Array.from({length: n}, () => new Float64Array(n));
+    const vCompat = Array.from({length: n}, () => new Float64Array(n));
+
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+            if (i === j) { hCompat[i][j] = Infinity; vCompat[i][j] = Infinity; continue; }
+            hCompat[i][j] = computeHCompat(i, j);
+            vCompat[i][j] = computeVCompat(i, j);
+        }
+        if (i % 10 === 0) updateLoading('正在计算块间兼容性...', `${i} / ${n} 块`);
+    }
+
+    updateLoading('正在求解最佳排列...', '');
+
+    // Find top-left corner: block with worst best-matches for top and left edges
+    let bestCorner = 0, bestCornerScore = -Infinity;
+    for (let i = 0; i < n; i++) {
+        let bestTopMatch = Infinity;
+        for (let j = 0; j < n; j++) { if (i !== j) bestTopMatch = Math.min(bestTopMatch, vCompat[j][i]); }
+        let bestLeftMatch = Infinity;
+        for (let j = 0; j < n; j++) { if (i !== j) bestLeftMatch = Math.min(bestLeftMatch, hCompat[j][i]); }
+        const score = bestTopMatch + bestLeftMatch;
+        if (score > bestCornerScore) { bestCornerScore = score; bestCorner = i; }
+    }
+
+    // Greedy placement
+    currentGrid = Array.from({length: gridRows}, () => new Array(gridCols).fill(-1));
+    const used = new Set();
+
+    // Place top-left corner
+    currentGrid[0][0] = bestCorner;
+    used.add(bestCorner);
+
+    // First row
+    for (let c = 1; c < gridCols; c++) {
+        const left = currentGrid[0][c - 1];
+        let bestIdx = -1, bestDist = Infinity;
+        for (let i = 0; i < n; i++) {
+            if (used.has(i)) continue;
+            if (hCompat[left][i] < bestDist) { bestDist = hCompat[left][i]; bestIdx = i; }
+        }
+        currentGrid[0][c] = bestIdx;
+        used.add(bestIdx);
+    }
+
+    // Remaining rows
+    for (let r = 1; r < gridRows; r++) {
+        // First column: vertical match only
+        const top = currentGrid[r - 1][0];
+        let bestIdx = -1, bestDist = Infinity;
+        for (let i = 0; i < n; i++) {
+            if (used.has(i)) continue;
+            if (vCompat[top][i] < bestDist) { bestDist = vCompat[top][i]; bestIdx = i; }
+        }
+        currentGrid[r][0] = bestIdx;
+        used.add(bestIdx);
+
+        // Rest of the row: combine vertical and horizontal
+        for (let c = 1; c < gridCols; c++) {
+            const topB = currentGrid[r - 1][c];
+            const leftB = currentGrid[r][c - 1];
+            let bestI = -1, bestS = Infinity;
+            for (let i = 0; i < n; i++) {
+                if (used.has(i)) continue;
+                const score = vCompat[topB][i] + hCompat[leftB][i];
+                if (score < bestS) { bestS = score; bestI = i; }
+            }
+            currentGrid[r][c] = bestI;
+            used.add(bestI);
+        }
+    }
+
+    // Local optimization: try swapping adjacent blocks to improve score
+    updateLoading('正在优化排列...', '');
+    localOptimize(hCompat, vCompat);
+
+    renderResult();
+}
+
+function extractBlocks() {
+    blockDataList = [];
+    blockCanvases = [];
+    const data = srcImageData.data;
+    const w = srcImg.width;
+
+    for (let r = 0; r < gridRows; r++) {
+        for (let c = 0; c < gridCols; c++) {
+            const bd = new Uint8ClampedArray(blockW * blockH * 4);
+            for (let y = 0; y < blockH; y++) {
+                for (let x = 0; x < blockW; x++) {
+                    const si = ((r * blockH + y) * w + (c * blockW + x)) * 4;
+                    const di = (y * blockW + x) * 4;
+                    bd[di] = data[si]; bd[di+1] = data[si+1]; bd[di+2] = data[si+2]; bd[di+3] = data[si+3];
+                }
+            }
+            const idx = r * gridCols + c;
+            blockDataList.push({data: bd, idx});
+
+            // Create offscreen canvas
+            const cv = document.createElement('canvas');
+            cv.width = blockW; cv.height = blockH;
+            const cx = cv.getContext('2d');
+            cx.putImageData(new ImageData(bd, blockW, blockH), 0, 0);
+            blockCanvases.push(cv);
+        }
+    }
+}
+
+// Horizontal compatibility: right edge of block i vs left edge of block j
+function computeHCompat(i, j) {
+    const d1 = blockDataList[i].data, d2 = blockDataList[j].data;
+    const w = blockW, h = blockH;
+    let directDiff = 0, gradDiff = 0, trendDiff = 0;
+
+    for (let y = 0; y < h; y++) {
+        // Direct: last col of i vs first col of j
+        const i1 = (y * w + w - 1) * 4;
+        const i2 = (y * w) * 4;
+        directDiff += Math.abs(d1[i1] - d2[i2]) + Math.abs(d1[i1+1] - d2[i2+1]) + Math.abs(d1[i1+2] - d2[i2+2]);
+
+        // Gradient consistency: extrapolate from i's edge to predict j's first pixel
+        if (w >= 2) {
+            const i1p = (y * w + w - 2) * 4;
+            for (let c = 0; c < 3; c++) {
+                const grad = d1[i1 + c] - d1[i1p + c];
+                const predicted = d1[i1 + c] + grad;
+                gradDiff += Math.abs(predicted - d2[i2 + c]);
+            }
+        }
+    }
+
+    // Vertical gradient trend consistency at the boundary
+    if (h >= 2) {
+        for (let y = 1; y < h; y++) {
+            const i1_cur = (y * w + w - 1) * 4;
+            const i1_prev = ((y - 1) * w + w - 1) * 4;
+            const i2_cur = (y * w) * 4;
+            const i2_prev = ((y - 1) * w) * 4;
+            for (let c = 0; c < 3; c++) {
+                const trend1 = d1[i1_cur + c] - d1[i1_prev + c];
+                const trend2 = d2[i2_cur + c] - d2[i2_prev + c];
+                trendDiff += Math.abs(trend1 - trend2);
+            }
+        }
+    }
+
+    const directScore = directDiff / h;
+    const gradientScore = gradDiff / (h * 3);
+    const trendScore = trendDiff / ((h - 1) * 3);
+
+    return directScore + 0.4 * gradientScore + 0.2 * trendScore;
+}
+
+// Vertical compatibility: bottom edge of block i vs top edge of block j
+function computeVCompat(i, j) {
+    const d1 = blockDataList[i].data, d2 = blockDataList[j].data;
+    const w = blockW, h = blockH;
+    let directDiff = 0, gradDiff = 0, trendDiff = 0;
+
+    for (let x = 0; x < w; x++) {
+        // Direct: last row of i vs first row of j
+        const i1 = ((h - 1) * w + x) * 4;
+        const i2 = x * 4;
+        directDiff += Math.abs(d1[i1] - d2[i2]) + Math.abs(d1[i1+1] - d2[i2+1]) + Math.abs(d1[i1+2] - d2[i2+2]);
+
+        // Gradient consistency
+        if (h >= 2) {
+            const i1p = ((h - 2) * w + x) * 4;
+            for (let c = 0; c < 3; c++) {
+                const grad = d1[i1 + c] - d1[i1p + c];
+                const predicted = d1[i1 + c] + grad;
+                gradDiff += Math.abs(predicted - d2[i2 + c]);
+            }
+        }
+    }
+
+    // Horizontal gradient trend consistency at the boundary
+    if (w >= 2) {
+        for (let x = 1; x < w; x++) {
+            const i1_cur = ((h - 1) * w + x) * 4;
+            const i1_prev = ((h - 1) * w + x - 1) * 4;
+            const i2_cur = x * 4;
+            const i2_prev = (x - 1) * 4;
+            for (let c = 0; c < 3; c++) {
+                const trend1 = d1[i1_cur + c] - d1[i1_prev + c];
+                const trend2 = d2[i2_cur + c] - d2[i2_prev + c];
+                trendDiff += Math.abs(trend1 - trend2);
+            }
+        }
+    }
+
+    const directScore = directDiff / w;
+    const gradientScore = gradDiff / (w * 3);
+    const trendScore = trendDiff / ((w - 1) * 3);
+
+    return directScore + 0.4 * gradientScore + 0.2 * trendScore;
+}
+
+// Local optimization: try swapping adjacent blocks
+function localOptimize(hCompat, vCompat) {
+    const maxIter = 20;
+    for (let iter = 0; iter < maxIter; iter++) {
+        let improved = false;
+        // Try all pairs of adjacent blocks (right and bottom neighbors)
+        for (let r = 0; r < gridRows; r++) {
+            for (let c = 0; c < gridCols; c++) {
+                // Try swapping with right neighbor
+                if (c + 1 < gridCols) {
+                    const oldS = localScore(r, c, hCompat, vCompat) + localScore(r, c+1, hCompat, vCompat);
+                    swapGrid(r, c, r, c+1);
+                    const newS = localScore(r, c, hCompat, vCompat) + localScore(r, c+1, hCompat, vCompat);
+                    if (newS < oldS) improved = true;
+                    else swapGrid(r, c, r, c+1); // swap back
+                }
+                // Try swapping with bottom neighbor
+                if (r + 1 < gridRows) {
+                    const oldS = localScore(r, c, hCompat, vCompat) + localScore(r+1, c, hCompat, vCompat);
+                    swapGrid(r, c, r+1, c);
+                    const newS = localScore(r, c, hCompat, vCompat) + localScore(r+1, c, hCompat, vCompat);
+                    if (newS < oldS) improved = true;
+                    else swapGrid(r, c, r+1, c); // swap back
+                }
+            }
+        }
+        if (!improved) break;
+    }
+}
+
+function localScore(r, c, hCompat, vCompat) {
+    const b = currentGrid[r][c];
+    let s = 0;
+    if (c > 0) s += hCompat[currentGrid[r][c-1]][b];
+    if (c + 1 < gridCols) s += hCompat[b][currentGrid[r][c+1]];
+    if (r > 0) s += vCompat[currentGrid[r-1][c]][b];
+    if (r + 1 < gridRows) s += vCompat[b][currentGrid[r+1][c]];
+    return s;
+}
+
+function swapGrid(r1, c1, r2, c2) {
+    const tmp = currentGrid[r1][c1];
+    currentGrid[r1][c1] = currentGrid[r2][c2];
+    currentGrid[r2][c2] = tmp;
+}
+
+// ============================================================
+//  Result Rendering
+// ============================================================
+function renderResult() {
+    const body = $('rightBody');
+    const maxW = body.clientWidth - 20;
+    const maxH = body.clientHeight - 20;
+    const imgW = gridCols * blockW;
+    const imgH = gridRows * blockH;
+
+    resultScale = Math.min(maxW / imgW, maxH / imgH, 1);
+    const cw = Math.round(imgW * resultScale);
+    const ch = Math.round(imgH * resultScale);
+
+    resultCanvas.width = cw;
+    resultCanvas.height = ch;
+    resultCanvas.style.display = 'block';
+    $('resultPlaceholder').style.display = 'none';
+
+    resultOffsetX = 0;
+    resultOffsetY = 0;
+
+    drawResultContent();
+
+    $('resultInfo').textContent = `${imgW} × ${imgH} (${gridCols}×${gridRows} 块)`;
+}
+
+function drawResultContent() {
+    const ctx = resultCtx;
+    const cw = resultCanvas.width, ch = resultCanvas.height;
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, cw, ch);
+
+    const bw = blockW * resultScale;
+    const bh = blockH * resultScale;
+
+    for (let r = 0; r < gridRows; r++) {
+        for (let c = 0; c < gridCols; c++) {
+            const blockIdx = currentGrid[r][c];
+            const dx = resultOffsetX + c * bw;
+            const dy = resultOffsetY + r * bh;
+            ctx.drawImage(blockCanvases[blockIdx], dx, dy, bw, bh);
+        }
+    }
+
+    if (isManual) drawGridLines();
+}
+
+function drawGridLines() {
+    const ctx = resultCtx;
+    const cw = resultCanvas.width, ch = resultCanvas.height;
+    const bw = blockW * resultScale;
+    const bh = blockH * resultScale;
+
+    ctx.strokeStyle = 'rgba(255,165,0,0.6)';
+    ctx.lineWidth = 1;
+
+    for (let r = 0; r <= gridRows; r++) {
+        const y = resultOffsetY + r * bh;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cw, y); ctx.stroke();
+    }
+    for (let c = 0; c <= gridCols; c++) {
+        const x = resultOffsetX + c * bw;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ch); ctx.stroke();
+    }
+
+    // Draw block indices
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.font = `${Math.max(9, Math.min(12, bw / 4))}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let r = 0; r < gridRows; r++) {
+        for (let c = 0; c < gridCols; c++) {
+            const cx = resultOffsetX + c * bw + bw / 2;
+            const cy = resultOffsetY + r * bh + bh / 2;
+            // Small label background
+            const label = `${r},${c}`;
+            const tw = ctx.measureText(label).width + 6;
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(cx - tw/2, cy - 8, tw, 16);
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.fillText(label, cx, cy);
+        }
+    }
+}
+
+// ============================================================
+//  Manual Mode: Drag & Swap
+// ============================================================
+function setupManualMode() {
+    chkManual.addEventListener('change', () => {
+        isManual = chkManual.checked;
+        if (currentGrid.length > 0) drawResultContent();
+    });
+
+    resultCanvas.addEventListener('mousedown', onDragStart);
+    resultCanvas.addEventListener('mousemove', onDragMove);
+    resultCanvas.addEventListener('mouseup', onDragEnd);
+    resultCanvas.addEventListener('mouseleave', onDragEnd);
+
+    // Touch support
+    resultCanvas.addEventListener('touchstart', e => { e.preventDefault(); onDragStart(touchToMouse(e)); }, {passive: false});
+    resultCanvas.addEventListener('touchmove', e => { e.preventDefault(); onDragMove(touchToMouse(e)); }, {passive: false});
+    resultCanvas.addEventListener('touchend', e => { e.preventDefault(); onDragEnd(touchToMouse(e)); }, {passive: false});
+}
+
+function touchToMouse(e) {
+    const t = e.touches[0] || e.changedTouches[0];
+    return { clientX: t.clientX, clientY: t.clientY, target: e.target };
+}
+
+function canvasToGrid(e) {
+    const rect = resultCanvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    // Account for CSS scaling vs canvas pixel ratio
+    const scaleX = resultCanvas.width / rect.width;
+    const scaleY = resultCanvas.height / rect.height;
+    const cx = mx * scaleX;
+    const cy = my * scaleY;
+
+    const bw = blockW * resultScale;
+    const bh = blockH * resultScale;
+    const col = Math.floor((cx - resultOffsetX) / bw);
+    const row = Math.floor((cy - resultOffsetY) / bh);
+
+    if (row >= 0 && row < gridRows && col >= 0 && col < gridCols) return {row, col};
+    return null;
+}
+
+function onDragStart(e) {
+    if (!isManual || animating || currentGrid.length === 0) return;
+    const pos = canvasToGrid(e);
+    if (!pos) return;
+    isDragging = true;
+    dragSrc = pos;
+    dragCurrent = {x: e.clientX, y: e.clientY};
+
+    // Highlight source block
+    drawResultContent();
+    highlightBlock(dragSrc.row, dragSrc.col, '#f0883e');
+}
+
+function onDragMove(e) {
+    if (!isDragging || animating) return;
+    dragCurrent = {x: e.clientX, y: e.clientY};
+
+    // Redraw and highlight
+    drawResultContent();
+    highlightBlock(dragSrc.row, dragSrc.col, '#f0883e');
+
+    // Highlight target block if different
+    const pos = canvasToGrid(e);
+    if (pos && (pos.row !== dragSrc.row || pos.col !== dragSrc.col)) {
+        highlightBlock(pos.row, pos.col, '#58a6ff');
+    }
+}
+
+function onDragEnd(e) {
+    if (!isDragging || animating) return;
+    isDragging = false;
+
+    const pos = canvasToGrid(e);
+    if (pos && (pos.row !== dragSrc.row || pos.col !== dragSrc.col)) {
+        // Animate swap
+        animateSwap(dragSrc.row, dragSrc.col, pos.row, pos.col);
+    } else {
+        drawResultContent();
+    }
+    dragSrc = null;
+}
+
+function highlightBlock(r, c, color) {
+    const ctx = resultCtx;
+    const bw = blockW * resultScale;
+    const bh = blockH * resultScale;
+    const x = resultOffsetX + c * bw;
+    const y = resultOffsetY + r * bh;
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, bw - 2, bh - 2);
+
+    // Semi-transparent overlay
+    ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba').replace('#', '');
+    // Use hex to rgba
+    const r_ = parseInt(color.slice(1,3),16);
+    const g_ = parseInt(color.slice(3,5),16);
+    const b_ = parseInt(color.slice(5,7),16);
+    ctx.fillStyle = `rgba(${r_},${g_},${b_},0.15)`;
+    ctx.fillRect(x, y, bw, bh);
+}
+
+function animateSwap(r1, c1, r2, c2) {
+    animating = true;
+    const duration = 300;
+    const startTime = performance.now();
+
+    const bw = blockW * resultScale;
+    const bh = blockH * resultScale;
+
+    // Source and target pixel positions
+    const x1 = resultOffsetX + c1 * bw, y1_ = resultOffsetY + r1 * bh;
+    const x2 = resultOffsetX + c2 * bw, y2_ = resultOffsetY + r2 * bh;
+
+    const blockIdx1 = currentGrid[r1][c1];
+    const blockIdx2 = currentGrid[r2][c2];
+
+    function frame(time) {
+        const elapsed = time - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        const ease = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3) / 2;
+
+        const ctx = resultCtx;
+        const cw = resultCanvas.width, ch = resultCanvas.height;
+        ctx.clearRect(0, 0, cw, ch);
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, cw, ch);
+
+        // Draw all blocks except the two being animated
+        for (let r = 0; r < gridRows; r++) {
+            for (let c = 0; c < gridCols; c++) {
+                if ((r === r1 && c === c1) || (r === r2 && c === c2)) continue;
+                const dx = resultOffsetX + c * bw;
+                const dy = resultOffsetY + r * bh;
+                ctx.drawImage(blockCanvases[currentGrid[r][c]], dx, dy, bw, bh);
+            }
+        }
+
+        // Draw block1 sliding to position2
+        const bx1 = x1 + (x2 - x1) * ease;
+        const by1 = y1_ + (y2_ - y1_) * ease;
+        ctx.globalAlpha = 0.9;
+        ctx.drawImage(blockCanvases[blockIdx1], bx1, by1, bw, bh);
+        ctx.strokeStyle = '#f0883e';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx1, by1, bw, bh);
+
+        // Draw block2 sliding to position1
+        const bx2 = x2 + (x1 - x2) * ease;
+        const by2 = y2_ + (y1_ - y2_) * ease;
+        ctx.drawImage(blockCanvases[blockIdx2], bx2, by2, bw, bh);
+        ctx.strokeStyle = '#58a6ff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx2, by2, bw, bh);
+
+        ctx.globalAlpha = 1.0;
+
+        if (t < 1) {
+            requestAnimationFrame(frame);
+        } else {
+            // Animation complete, swap in grid
+            swapGrid(r1, c1, r2, c2);
+            animating = false;
+            drawResultContent();
+        }
+    }
+
+    requestAnimationFrame(frame);
+}
+
+// ============================================================
+//  Save Image
+// ============================================================
+function saveImage() {
+    if (currentGrid.length === 0) { showToast('没有可保存的图片', 'error'); return; }
+
+    const imgW = gridCols * blockW;
+    const imgH = gridRows * blockH;
+    const c = document.createElement('canvas');
+    c.width = imgW; c.height = imgH;
+    const cx = c.getContext('2d');
+
+    for (let r = 0; r < gridRows; r++) {
+        for (let col = 0; col < gridCols; col++) {
+            const blockIdx = currentGrid[r][col];
+            const dx = col * blockW;
+            const dy = r * blockH;
+            cx.drawImage(blockCanvases[blockIdx], dx, dy);
+        }
+    }
+
+    c.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'puzzle_restored.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('图片已保存', 'success');
+    }, 'image/png');
+}
+
+// ============================================================
+//  Window Resize Handler
+// ============================================================
+window.addEventListener('resize', () => {
+    if (srcImg) drawSourceImage();
+    if (currentGrid.length > 0) renderResult();
+});
+</script>
+</body>
+</html>

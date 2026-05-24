@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puzzle 图片解算器</title>
+    <style>
+        :root {
+            --bg: #1a1d23;
+            --surface: #252830;
+            --surface2: #2d3039;
+            --text: #e0e0e0;
+            --text-secondary: #a0a4b0;
+            --accent: #5b9bd5;
+            --accent-hover: #6db5e8;
+            --success: #4caf84;
+            --warning: #e2a654;
+            --danger: #e0556a;
+            --border: #3a3d45;
+            --radius: 10px;
+            --radius-sm: 6px;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 顶部参数栏 */
+        .top-bar {
+            width: 100%;
+            max-width: 1400px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-radius: 0 0 var(--radius) var(--radius);
+        }
+        .top-bar .logo {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--accent);
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            margin-right: 8px;
+        }
+        .top-bar .param-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--surface2);
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+        .top-bar label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            font-weight: 500;
+        }
+        .top-bar input[type="number"] {
+            width: 52px;
+            padding: 6px 8px;
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            text-align: center;
+            font-family: inherit;
+            transition: var(--transition);
+        }
+        .top-bar input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(91, 155, 213, 0.15);
+        }
+        .top-bar .param-sep {
+            font-weight: 700;
+            color: var(--text-secondary);
+            font-size: 1rem;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            transition: var(--transition);
+            white-space: nowrap;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-detect {
+            background: var(--accent);
+            color: #fff;
+        }
+        .btn-detect:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(91, 155, 213, 0.3);
+        }
+        .btn-restore {
+            background: var(--success);
+            color: #fff;
+        }
+        .btn-restore:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(76, 175, 132, 0.3);
+        }
+        .btn-manual {
+            background: var(--warning);
+            color: #1a1d23;
+        }
+        .btn-manual:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(226, 166, 84, 0.3);
+        }
+        .btn-manual.active {
+            background: #f0b860;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+            outline: 3px solid rgba(226, 166, 84, 0.5);
+        }
+        .btn-save {
+            background: #6c5ce7;
+            color: #fff;
+            margin-left: auto;
+        }
+        .btn-save:hover {
+            filter: brightness(1.15);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(108, 92, 231, 0.35);
+        }
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            pointer-events: none;
+            filter: none;
+            transform: none;
+            box-shadow: none;
+        }
+        .btn:active:not(:disabled) {
+            transform: scale(0.96);
+        }
+
+        /* 主体布局 */
+        .main-container {
+            display: flex;
+            width: 100%;
+            max-width: 1400px;
+            flex: 1;
+            gap: 16px;
+            padding: 16px 20px;
+            min-height: 0;
+        }
+        @media (max-width: 900px) {
+            .main-container {
+                flex-direction: column;
+            }
+        }
+
+        /* 面板 */
+        .panel {
+            background: var(--surface);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+        .panel-header {
+            padding: 10px 16px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            letter-spacing: 0.4px;
+            background: var(--surface2);
+            text-align: center;
+        }
+        .panel-body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: auto;
+            min-height: 300px;
+            background:
+                repeating-conic-gradient(var(--surface2) 0% 25%, transparent 0% 50%) 50% / 20px 20px;
+        }
+
+        /* 左侧面板 */
+        .panel-left {
+            flex: 0 0 42%;
+            min-width: 280px;
+            max-width: 550px;
+        }
+        .panel-left .drop-zone {
+            width: 100%;
+            height: 100%;
+            min-height: 350px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+        }
+        .panel-left .drop-zone:hover {
+            background: rgba(91, 155, 213, 0.04);
+        }
+        .panel-left .drop-zone.drag-over {
+            background: rgba(91, 155, 213, 0.12);
+            border: 3px dashed var(--accent);
+            border-radius: var(--radius);
+        }
+        .drop-zone .placeholder {
+            text-align: center;
+            color: var(--text-secondary);
+            pointer-events: none;
+        }
+        .drop-zone .placeholder .icon {
+            font-size: 3.5rem;
+            margin-bottom: 12px;
+            opacity: 0.6;
+        }
+        .drop-zone .placeholder .text {
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .drop-zone .placeholder .subtext {
+            font-size: 0.78rem;
+            opacity: 0.6;
+            margin-top: 4px;
+        }
+        .panel-left img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+            border-radius: 4px;
+        }
+        .panel-left canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+            border-radius: 4px;
+        }
+
+        /* 右侧面板 */
+        .panel-right {
+            flex: 1;
+            min-width: 350px;
+        }
+        .panel-right canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+            border-radius: 4px;
+            cursor: default;
+        }
+        .panel-right canvas.manual-mode {
+            cursor: grab;
+        }
+        .panel-right canvas.manual-mode:active {
+            cursor: grabbing;
+        }
+        .panel-right .placeholder {
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        .panel-right .placeholder .icon {
+            font-size: 3rem;
+            margin-bottom: 8px;
+            opacity: 0.5;
+        }
+
+        /* 提示信息 */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: var(--surface2);
+            color: var(--text);
+            padding: 10px 22px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            z-index: 999;
+            letter-spacing: 0.3px;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .toast.success {
+            border-color: var(--success);
+            color: var(--success);
+        }
+        .toast.error {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        /* 动画状态提示 */
+        .animating-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            font-size: 0.8rem;
+            color: var(--accent);
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 10;
+        }
+        .animating-indicator.visible {
+            opacity: 1;
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 顶部参数栏 -->
+    <div class="top-bar" id="topBar">
+        <span class="logo">🧩 Puzzle解算器</span>
+        <div class="param-group">
+            <label for="paramA">块数 (宽 × 高)：</label>
+            <input type="number" id="paramA" value="4" min="2" max="50" title="水平方向块数 (a)">
+            <span class="param-sep">×</span>
+            <input type="number" id="paramB" value="4" min="2" max="50" title="垂直方向块数 (b)">
+        </div>
+        <button class="btn btn-detect" id="btnDetect" title="自动检测puzzle块大小">🔍 检测块大小</button>
+        <button class="btn btn-restore" id="btnRestore" disabled title="根据当前参数还原图片">✨ 自动还原</button>
+        <button class="btn btn-manual" id="btnManual" disabled title="切换手动拖拽调整模式">✋ 手动调整模式</button>
+        <button class="btn btn-save" id="btnSave" disabled title="保存右侧还原图片到本地">💾 保存图片</button>
+    </div>
+
+    <!-- 主体 -->
+    <div class="main-container">
+        <!-- 左侧：原始图片 -->
+        <div class="panel panel-left" id="panelLeft">
+            <div class="panel-header">📥 原始Puzzle图片</div>
+            <div class="panel-body" id="leftPanelBody">
+                <div class="drop-zone" id="dropZone">
+                    <div class="placeholder">
+                        <div class="icon">🖼️</div>
+                        <div class="text">点击此处或拖拽图片</div>
+                        <div class="subtext">支持 PNG / JPEG / WebP</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧：还原结果 -->
+        <div class="panel panel-right" id="panelRight">
+            <div class="panel-header">🖼️ 还原结果</div>
+            <div class="panel-body" id="rightPanelBody">
+                <div class="placeholder">
+                    <div class="icon">🔍</div>
+                    <div>加载图片并点击还原后显示</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast提示 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- 隐藏的文件输入 -->
+    <input type="file" id="fileInput" accept="image/*" style="display:none;">
+
+    <script>
+        (function() {
+            // ==================== DOM引用 ====================
+            const dropZone = document.getElementById('dropZone');
+            const leftPanelBody = document.getElementById('leftPanelBody');
+            const rightPanelBody = document.getElementById('rightPanelBody');
+            const paramAInput = document.getElementById('paramA');
+            const paramBInput = document.getElementById('paramB');
+            const btnDetect = document.getElementById('btnDetect');
+            const btnRestore = document.getElementById('btnRestore');
+            const btnManual = document.getElementById('btnManual');
+            const btnSave = document.getElementById('btnSave');
+            const fileInput = document.getElementById('fileInput');
+            const toast = document.getElementById('toast');
+
+            // ==================== 状态变量 ====================
+            let originalImg = null; // 原始puzzle图片 (HTMLImageElement)
+            let imgWidth = 0;
+            let imgHeight = 0;
+            let blockCountA = 4; // 水平块数 (参数a)
+            let blockCountB = 4; // 垂直块数 (参数b)
+            let blockWidth = 0;
+            let blockHeight = 0;
+            let puzzleBlocks = []; // 从puzzle中提取的块，按puzzle位置排列 (row-major)
+            // puzzleBlocks[row * blockCountA + col] = { canvas, ctx, imageData }
+            let currentArrangement = []; // 当前排列：arr[row][col] = 块在puzzleBlocks中的索引
+            let correctArrangement = []; // 还原算法得出的正确排列
+            let isManualMode = false;
+            let isAnimating = false;
+            let originalImageData = null; // 原始图片的ImageData（用于检测）
+
+            // 左侧显示的canvas
+            let leftCanvas = null;
+            let leftCtx = null;
+            // 右侧显示的canvas
+            let rightCanvas = null;
+            let rightCtx = null;
+
+            // 拖拽状态
+            let dragState = null; // { sourceRow, sourceCol, startX, startY, offsetX, offsetY }
+            let hoverTarget = null; // { row, col } 当前悬停的目标块
+            let swapAnimation = null; // 交换动画状态
+
+            // ==================== Toast ====================
+            let toastTimer = null;
+
+            function showToast(message, type = '') {
+                if (toastTimer) clearTimeout(toastTimer);
+                toast.textContent = message;
+                toast.className = 'toast ' + type + ' show';
+                toastTimer = setTimeout(() => {
+                    toast.classList.remove('show');
+                    toast.className = 'toast';
+                }, 2200);
+            }
+
+            // ==================== 文件加载 ====================
+            function loadImageFromFile(file) {
+                if (!file || !file.type.match(/image\/(png|jpeg|webp|gif|bmp|tiff)/i)) {
+                    showToast('请提供有效的图片文件', 'error');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        originalImg = img;
+                        imgWidth = img.naturalWidth;
+                        imgHeight = img.naturalHeight;
+                        displayLeftImage(img);
+                        resetState();
+                        showToast(`图片已加载 (${imgWidth} × ${imgHeight} px)`, 'success');
+                        btnRestore.disabled = false;
+                        btnManual.disabled = true;
+                        btnSave.disabled = true;
+                        updateParamInputs();
+                    };
+                    img.onerror = function() {
+                        showToast('图片加载失败', 'error');
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function displayLeftImage(img) {
+                // 清除之前的canvas
+                const existingCanvas = leftPanelBody.querySelector('canvas');
+                if (existingCanvas) existingCanvas.remove();
+                const existingImg = leftPanelBody.querySelector('img');
+                if (existingImg && existingImg !== img && existingImg.parentElement === leftPanelBody)
+                    existingImg.remove();
+
+                // 隐藏drop zone的占位符
+                const placeholder = dropZone.querySelector('.placeholder');
+                if (placeholder) placeholder.style.display = 'none';
+
+                // 如果img还没有在DOM中，添加它
+                if (!img.parentElement || img.parentElement !== leftPanelBody) {
+                    // 移除dropZone中可能存在的旧img
+                    const oldImg = dropZone.querySelector('img');
+                    if (oldImg && oldImg !== img) oldImg.remove();
+                    if (!dropZone.contains(img)) {
+                        // 使用canvas显示左侧图片（便于后续处理）
+                        if (!leftCanvas) {
+                            leftCanvas = document.createElement('canvas');
+                            leftCtx = leftCanvas.getContext('2d');
+                            leftCanvas.style.maxWidth = '100%';
+                            leftCanvas.style.maxHeight = '100%';
+                            leftCanvas.style.objectFit = 'contain';
+                            leftCanvas.style.display = 'block';
+                            leftCanvas.style.borderRadius = '4px';
+                        }
+                        leftCanvas.width = imgWidth;
+                        leftCanvas.height = imgHeight;
+                        leftCtx.clearRect(0, 0, imgWidth, imgHeight);
+                        leftCtx.drawImage(img, 0, 0);
+                        // 移除旧元素
+                        const oldCanvas = dropZone.querySelector('canvas');
+                        if (oldCanvas && oldCanvas !== leftCanvas) oldCanvas.remove();
+                        if (!dropZone.contains(leftCanvas)) {
+                            dropZone.appendChild(leftCanvas);
+                        }
+                        // 存储原始ImageData用于检测
+                        originalImageData = leftCtx.getImageData(0, 0, imgWidth, imgHeight);
+                    }
+                }
+                dropZone.classList.remove('drag-over');
+            }
+
+            function resetState() {
+                puzzleBlocks = [];
+                currentArrangement = [];
+                correctArrangement = [];
+                isManualMode = false;
+                isAnimating = false;
+                dragState = null;
+                hoverTarget = null;
+                swapAnimation = null;
+                blockCountA = parseInt(paramAInput.value) || 4;
+                blockCountB = parseInt(paramBInput.value) || 4;
+                blockWidth = 0;
+                blockHeight = 0;
+                btnManual.disabled = true;
+                btnManual.classList.remove('active');
+                btnSave.disabled = true;
+                // 清除右侧
+                clearRightPanel();
+                updateParamInputs();
+            }
+
+            function clearRightPanel() {
+                if (rightCanvas && rightCanvas.parentElement === rightPanelBody) {
+                    rightCanvas.remove();
+                }
+                rightCanvas = null;
+                rightCtx = null;
+                // 显示占位符
+                const existingPlaceholder = rightPanelBody.querySelector('.placeholder');
+                if (!existingPlaceholder) {
+                    const ph = document.createElement('div');
+                    ph.className = 'placeholder';
+                    ph.innerHTML = '<div class="icon">🔍</div><div>加载图片并点击还原后显示</div>';
+                    rightPanelBody.appendChild(ph);
+                } else {
+                    existingPlaceholder.style.display = '';
+                }
+                // 移除旧canvas
+                const oldCanvas = rightPanelBody.querySelector('canvas');
+                if (oldCanvas) oldCanvas.remove();
+            }
+
+            function updateParamInputs() {
+                paramAInput.value = blockCountA;
+                paramBInput.value = blockCountB;
+            }
+
+            // ==================== 事件：文件拖拽和点击 ====================
+            dropZone.addEventListener('click', function(e) {
+                if (isAnimating) return;
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', function(e) {
+                if (e.target.files && e.target.files.length > 0) {
+                    loadImageFromFile(e.target.files[0]);
+                }
+                fileInput.value = '';
+            });
+
+            dropZone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isAnimating) {
+                    dropZone.classList.add('drag-over');
+                }
+            });
+
+            dropZone.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('drag-over');
+            });
+
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('drag-over');
+                if (isAnimating) return;
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    loadImageFromFile(e.dataTransfer.files[0]);
+                }
+            });
+
+            // 全局粘贴支持
+            document.addEventListener('paste', function(e) {
+                if (isAnimating) return;
+                const items = e.clipboardData?.items;
+                if (items) {
+                    for (const item of items) {
+                        if (item.type.match(/image\//)) {
+                            const file = item.getAsFile();
+                            if (file) {
+                                loadImageFromFile(file);
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+
+            // ==================== 参数手动调整 ====================
+            paramAInput.addEventListener('change', function() {
+                let val = parseInt(paramAInput.value);
+                if (isNaN(val) || val < 2) val = 2;
+                if (val > 50) val = 50;
+                blockCountA = val;
+                paramAInput.value = val;
+                if (originalImg) {
+                    // 参数改变，需要重新提取块和还原
+                    btnRestore.disabled = false;
+                    btnManual.disabled = true;
+                    btnManual.classList.remove('active');
+                    btnSave.disabled = true;
+                    isManualMode = false;
+                    clearRightPanel();
+                    updateRightCanvasCursor();
+                }
+            });
+
+            paramBInput.addEventListener('change', function() {
+                let val = parseInt(paramBInput.value);
+                if (isNaN(val) || val < 2) val = 2;
+                if (val > 50) val = 50;
+                blockCountB = val;
+                paramBInput.value = val;
+                if (originalImg) {
+                    btnRestore.disabled = false;
+                    btnManual.disabled = true;
+                    btnManual.classList.remove('active');
+                    btnSave.disabled = true;
+                    isManualMode = false;
+                    clearRightPanel();
+                    updateRightCanvasCursor();
+                }
+            });
+
+            // ==================== 检测Puzzle块大小 ====================
+            btnDetect.addEventListener('click', function() {
+                if (!originalImg || !originalImageData) {
+                    showToast('请先加载puzzle图片', 'error');
+                    return;
+                }
+                if (isAnimating) return;
+
+                const result = detectBlockSize(originalImageData, imgWidth, imgHeight);
+                if (result) {
+                    blockCountA = result.a;
+                    blockCountB = result.b;
+                    updateParamInputs();
+                    showToast(`检测完成：${blockCountA} × ${blockCountB} 块`, 'success');
+                    btnRestore.disabled = false;
+                    btnManual.disabled = true;
+                    btnManual.classList.remove('active');
+                    btnSave.disabled = true;
+                    isManualMode = false;
+                    clearRightPanel();
+                    updateRightCanvasCursor();
+                } else {
+                    showToast('无法自动检测，请手动调整参数', 'error');
+                }
+            });
+
+            function detectBlockSize(imageData, width, height) {
+                // 获取灰度数据
+                const gray = new Float32Array(width * height);
+                const data = imageData.data;
+                for (let i = 0; i < width * height; i++) {
+                    const r = data[i * 4];
+                    const g = data[i * 4 + 1];
+                    const b = data[i * 4 + 2];
+                    gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+                }
+
+                // 计算列差异（垂直边界强度）
+                const colDiff = new Float32Array(width);
+                for (let x = 1; x < width; x++) {
+                    let sum = 0;
+                    const offsetX = x;
+                    const offsetXm1 = x - 1;
+                    // 采样以加速
+                    const step = Math.max(1, Math.floor(height / 300));
+                    for (let y = 0; y < height; y += step) {
+                        const idx = y * width;
+                        sum += Math.abs(gray[idx + offsetX] - gray[idx + offsetXm1]);
+                    }
+                    colDiff[x] = sum / (height / step);
+                }
+
+                // 计算行差异（水平边界强度）
+                const rowDiff = new Float32Array(height);
+                for (let y = 1; y < height; y++) {
+                    let sum = 0;
+                    const offsetY = y * width;
+                    const offsetYm1 = (y - 1) * width;
+                    const step = Math.max(1, Math.floor(width / 300));
+                    for (let x = 0; x < width; x += step) {
+                        sum += Math.abs(gray[offsetY + x] - gray[offsetYm1 + x]);
+                    }
+                    rowDiff[y] = sum / (width / step);
+                }
+
+                // 获取宽度的所有因数
+                const factorsW = getFactors(width);
+                const factorsH = getFactors(height);
+
+                // 过滤合理的因数（2到50之间，且块大小至少10px）
+                const candidatesW = factorsW.filter(f => f >= 2 && f <= 50 && width / f >= 8);
+                const candidatesH = factorsH.filter(f => f >= 2 && f <= 50 && height / f >= 8);
+
+                if (candidatesW.length === 0 || candidatesH.length === 0) return null;
+
+                // 对每个候选m计算边界分数
+                function scoreCandidate(candidates, diffArray, totalSize) {
+                    const scores = [];
+                    for (const c of candidates) {
+                        const blockSize = totalSize / c;
+                        let totalScore = 0;
+                        let count = 0;
+                        for (let k = 1; k < c; k++) {
+                            const pos = Math.round(k * blockSize);
+                            if (pos >= 1 && pos < totalSize) {
+                                // 检查边界附近的峰值
+                                const radius = Math.max(1, Math.floor(blockSize * 0.15));
+                                let localMax = 0;
+                                for (let r = -radius; r <= radius; r++) {
+                                    const p = pos + r;
+                                    if (p >= 1 && p < totalSize) {
+                                        localMax = Math.max(localMax, diffArray[p]);
+                                    }
+                                }
+                                totalScore += localMax;
+                                count++;
+                            }
+                        }
+                        const avgScore = count > 0 ? totalScore / count : 0;
+                        // 同时检查边界位置的一致性
+                        // 对边界附近的值进行采样，检查是否有明显的峰值
+                        let peakClarity = 0;
+                        for (let k = 1; k < c; k++) {
+                            const pos = Math.round(k * blockSize);
+                            if (pos >= 2 && pos < totalSize - 2) {
+                                const peakVal = diffArray[pos];
+                                const neighborVal = (diffArray[pos - 1] + diffArray[pos + 1]) / 2;
+                                if (neighborVal > 0.001) {
+                                    peakClarity += peakVal / neighborVal;
+                                } else if (peakVal > 0.001) {
+                                    peakClarity += 3;
+                                }
+                            }
+                        }
+                        const clarityAvg = count > 0 ? peakClarity / count : 0;
+                        scores.push({ c, avgScore, clarityAvg, combined: avgScore * (0.5 + 0.5 * Math.min(
+                                clarityAvg, 3) / 3) });
+                    }
+                    scores.sort((a, b) => b.combined - a.combined);
+                    return scores;
+                }
+
+                const scoresW = scoreCandidate(candidatesW, colDiff, width);
+                const scoresH = scoreCandidate(candidatesH, rowDiff, height);
+
+                if (scoresW.length === 0 || scoresH.length === 0) return null;
+
+                // 选择最佳组合
+                // 取前几名候选进行综合评估
+                const topW = scoresW.slice(0, Math.min(5, scoresW.length));
+                const topH = scoresH.slice(0, Math.min(5, scoresH.length));
+
+                let bestA = topW[0].c;
+                let bestB = topH[0].c;
+                let bestOverall = -Infinity;
+
+                for (const w of topW) {
+                    for (const h of topH) {
+                        const overall = w.combined + h.combined;
+                        if (overall > bestOverall) {
+                            bestOverall = overall;
+                            bestA = w.c;
+                            bestB = h.c;
+                        }
+                    }
+                }
+
+                return { a: bestA, b: bestB };
+            }
+
+            function getFactors(num) {
+                const factors = [];
+                for (let i = 1; i <= Math.sqrt(num); i++) {
+                    if (num % i === 0) {
+                        factors.push(i);
+                        const complement = num / i;
+                        if (complement !== i) {
+                            factors.push(complement);
+                        }
+                    }
+                }
+                factors.sort((a, b) => a - b);
+                return factors;
+            }
+
+            // ==================== 还原算法 ====================
+            btnRestore.addEventListener('click', function() {
+                if (!originalImg || !originalImageData) {
+                    showToast('请先加载puzzle图片', 'error');
+                    return;
+                }
+                if (isAnimating) return;
+
+                blockCountA = parseInt(paramAInput.value) || 4;
+                blockCountB = parseInt(paramBInput.value) || 4;
+                if (blockCountA < 2 || blockCountB < 2) {
+                    showToast('块数至少为2', 'error');
+                    return;
+                }
+                if (imgWidth % blockCountA !== 0 || imgHeight % blockCountB !== 0) {
+                    showToast('图片尺寸必须能被块数整除', 'error');
+                    return;
+                }
+
+                blockWidth = imgWidth / blockCountA;
+                blockHeight = imgHeight / blockCountB;
+
+                // 提取所有块
+                extractAllBlocks();
+
+                // 执行还原
+                const success = performRestoration();
+
+                if (success) {
+                    currentArrangement = correctArrangement.map(row => [...row]);
+                    displayRightImage(currentArrangement);
+                    btnManual.disabled = false;
+                    btnSave.disabled = false;
+                    isManualMode = false;
+                    btnManual.classList.remove('active');
+                    updateRightCanvasCursor();
+                    showToast('还原完成！可切换到手动模式微调', 'success');
+                } else {
+                    showToast('还原失败，请尝试手动调整', 'error');
+                }
+            });
+
+            function extractAllBlocks() {
+                puzzleBlocks = [];
+                const totalBlocks = blockCountA * blockCountB;
+                for (let i = 0; i < totalBlocks; i++) {
+                    const row = Math.floor(i / blockCountA);
+                    const col = i % blockCountA;
+                    const x = col * blockWidth;
+                    const y = row * blockHeight;
+                    const blockCanvas = document.createElement('canvas');
+                    blockCanvas.width = blockWidth;
+                    blockCanvas.height = blockHeight;
+                    const blockCtx = blockCanvas.getContext('2d');
+                    blockCtx.drawImage(originalImg, x, y, blockWidth, blockHeight, 0, 0, blockWidth, blockHeight);
+                    const imageData = blockCtx.getImageData(0, 0, blockWidth, blockHeight);
+                    puzzleBlocks.push({
+                        canvas: blockCanvas,
+                        ctx: blockCtx,
+                        imageData: imageData,
+                        originalRow: row,
+                        originalCol: col,
+                        index: i,
+                    });
+                }
+            }
+
+            function performRestoration() {
+                const totalBlocks = puzzleBlocks.length;
+                if (totalBlocks === 0) return false;
+
+                // 为每个块提取四条边的特征（灰度像素数组）
+                const edges = [];
+                for (let i = 0; i < totalBlocks; i++) {
+                    const imgData = puzzleBlocks[i].imageData;
+                    const w = blockWidth;
+                    const h = blockHeight;
+                    const data = imgData.data;
+
+                    const topEdge = new Float32Array(w);
+                    const bottomEdge = new Float32Array(w);
+                    const leftEdge = new Float32Array(h);
+                    const rightEdge = new Float32Array(h);
+
+                    for (let x = 0; x < w; x++) {
+                        topEdge[x] = 0.299 * data[x * 4] + 0.587 * data[x * 4 + 1] + 0.114 * data[x * 4 + 2];
+                        const bottomIdx = ((h - 1) * w + x) * 4;
+                        bottomEdge[x] = 0.299 * data[bottomIdx] + 0.587 * data[bottomIdx + 1] + 0.114 * data[
+                            bottomIdx + 2];
+                    }
+                    for (let y = 0; y < h; y++) {
+                        const leftIdx = (y * w) * 4;
+                        leftEdge[y] = 0.299 * data[leftIdx] + 0.587 * data[leftIdx + 1] + 0.114 * data[leftIdx + 2];
+                        const rightIdx = (y * w + w - 1) * 4;
+                        rightEdge[y] = 0.299 * data[rightIdx] + 0.587 * data[rightIdx + 1] + 0.114 * data[rightIdx +
+                            2];
+                    }
+
+                    // 计算每条边的方差（用于外边框检测）
+                    const topVar = calculateVariance(topEdge);
+                    const bottomVar = calculateVariance(bottomEdge);
+                    const leftVar = calculateVariance(leftEdge);
+                    const rightVar = calculateVariance(rightEdge);
+
+                    edges.push({
+                        top: topEdge,
+                        bottom: bottomEdge,
+                        left: leftEdge,
+                        right: rightEdge,
+                        topVar,
+                        bottomVar,
+                        leftVar,
+                        rightVar,
+                        index: i,
+                    });
+                }
+
+                // 计算所有块对之间的边匹配分数
+                // matchScoreH(A, B): A的右边与B的左边的匹配分数（越低越好）
+                // matchScoreV(A, B): A的下边与B的上边的匹配分数（越低越好）
+                function matchScoreH(edgeA, edgeB) {
+                    // A的右边 vs B的左边
+                    const len = Math.min(edgeA.right.length, edgeB.left.length);
+                    let sum = 0;
+                    for (let i = 0; i < len; i++) {
+                        const diff = edgeA.right[i] - edgeB.left[i];
+                        sum += diff * diff;
+                    }
+                    return sum / len;
+                }
+
+                function matchScoreV(edgeA, edgeB) {
+                    // A的下边 vs B的上边
+                    const len = Math.min(edgeA.bottom.length, edgeB.top.length);
+                    let sum = 0;
+                    for (let i = 0; i < len; i++) {
+                        const diff = edgeA.bottom[i] - edgeB.top[i];
+                        sum += diff * diff;
+                    }
+                    return sum / len;
+                }
+
+                // 检测外边框
+                const allVariances = [];
+                for (const e of edges) {
+                    allVariances.push(e.topVar, e.bottomVar, e.leftVar, e.rightVar);
+                }
+                allVariances.sort((a, b) => a - b);
+                // 使用较低的方差阈值来识别外边框
+                const varianceThreshold = allVariances[Math.floor(allVariances.length * 0.25)] * 1.8;
+
+                // 标记每条边是否为外边框
+                for (const e of edges) {
+                    e.isTopBorder = e.topVar < varianceThreshold;
+                    e.isBottomBorder = e.bottomVar < varianceThreshold;
+                    e.isLeftBorder = e.leftVar < varianceThreshold;
+                    e.isRightBorder = e.rightVar < varianceThreshold;
+                }
+
+                // 建立邻接关系图
+                // 对于每对块，计算四个方向的匹配分数
+                const numBlocks = totalBlocks;
+                // bestRight[i] = { target, score } 块i的最佳右邻居
+                const bestRight = new Array(numBlocks).fill(null).map(() => ({ target: -1, score: Infinity }));
+                const bestBottom = new Array(numBlocks).fill(null).map(() => ({ target: -1, score: Infinity }));
+                const bestLeft = new Array(numBlocks).fill(null).map(() => ({ target: -1, score: Infinity }));
+                const bestTop = new Array(numBlocks).fill(null).map(() => ({ target: -1, score: Infinity }));
+
+                for (let i = 0; i < numBlocks; i++) {
+                    for (let j = 0; j < numBlocks; j++) {
+                        if (i === j) continue;
+                        // i的右边匹配j的左边
+                        const scoreRL = matchScoreH(edges[i], edges[j]);
+                        if (scoreRL < bestRight[i].score && !edges[i].isRightBorder && !edges[j].isLeftBorder) {
+                            bestRight[i] = { target: j, score: scoreRL };
+                        }
+                        if (scoreRL < bestLeft[j].score && !edges[i].isRightBorder && !edges[j].isLeftBorder) {
+                            bestLeft[j] = { target: i, score: scoreRL };
+                        }
+                        // i的下边匹配j的上边
+                        const scoreBT = matchScoreV(edges[i], edges[j]);
+                        if (scoreBT < bestBottom[i].score && !edges[i].isBottomBorder && !edges[j].isTopBorder) {
+                            bestBottom[i] = { target: j, score: scoreBT };
+                        }
+                        if (scoreBT < bestTop[j].score && !edges[i].isBottomBorder && !edges[j].isTopBorder) {
+                            bestTop[j] = { target: i, score: scoreBT };
+                        }
+                    }
+                }
+
+                // 找到左上角块（左边和上边都是外边框，或者最佳左邻居和上邻居分数都很高意味着没有左/上邻居）
+                let topLeftCandidates = [];
+                for (let i = 0; i < numBlocks; i++) {
+                    const isTopEdge = edges[i].isTopBorder || bestTop[i].score > bestBottom[bestTop[i].target]?.score *
+                        1.5 || bestTop[i].target === -1;
+                    const isLeftEdge = edges[i].isLeftBorder || bestLeft[i].score > bestRight[bestLeft[i].target]
+                        ?.score * 1.5 || bestLeft[i].target === -1;
+                    if ((edges[i].isTopBorder || bestTop[i].score > 800) && (edges[i].isLeftBorder || bestLeft[i].score >
+                            800)) {
+                        topLeftCandidates.push(i);
+                    } else if (isTopEdge && isLeftEdge && edges[i].isTopBorder && edges[i].isLeftBorder) {
+                        topLeftCandidates.unshift(i);
+                    }
+                }
+
+                if (topLeftCandidates.length === 0) {
+                    // 放宽条件，选择上边和左边方差最小的块
+                    let bestCandidate = 0;
+                    let bestCombined = Infinity;
+                    for (let i = 0; i < numBlocks; i++) {
+                        const combined = edges[i].topVar + edges[i].leftVar;
+                        if (combined < bestCombined) {
+                            bestCombined = combined;
+                            bestCandidate = i;
+                        }
+                    }
+                    topLeftCandidates = [bestCandidate];
+                }
+
+                const topLeft = topLeftCandidates[0];
+
+                // 构建排列
+                const arrangement = [];
+                const used = new Set();
+                const startBlock = topLeft;
+                used.add(startBlock);
+
+                for (let row = 0; row < blockCountB; row++) {
+                    arrangement[row] = [];
+                    let currentBlock;
+                    if (row === 0) {
+                        currentBlock = startBlock;
+                    } else {
+                        // 找到上一行对应列块的下邻居
+                        const aboveBlock = arrangement[row - 1][0];
+                        let bestDown = bestBottom[aboveBlock].target;
+                        if (bestDown === -1 || used.has(bestDown)) {
+                            // 在未使用的块中找到最佳匹配
+                            bestDown = findBestMatch(aboveBlock, 'bottom', edges, used, bestBottom);
+                        }
+                        currentBlock = bestDown;
+                        if (currentBlock !== -1) used.add(currentBlock);
+                    }
+                    if (currentBlock === -1) {
+                        // fallback：使用第一个未使用的块
+                        for (let i = 0; i < numBlocks; i++) {
+                            if (!used.has(i)) { currentBlock = i;
+                                used.add(i); break; }
+                        }
+                    }
+                    arrangement[row][0] = currentBlock;
+
+                    // 填充该行的其余列
+                    for (let col = 1; col < blockCountA; col++) {
+                        const leftBlock = arrangement[row][col - 1];
+                        let bestRightNeighbor = bestRight[leftBlock].target;
+                        if (bestRightNeighbor === -1 || used.has(bestRightNeighbor)) {
+                            bestRightNeighbor = findBestMatch(leftBlock, 'right', edges, used, bestRight);
+                        }
+                        if (bestRightNeighbor !== -1 && !used.has(bestRightNeighbor)) {
+                            used.add(bestRightNeighbor);
+                            arrangement[row][col] = bestRightNeighbor;
+                        } else {
+                            // fallback
+                            for (let i = 0; i < numBlocks; i++) {
+                                if (!used.has(i)) {
+                                    arrangement[row][col] = i;
+                                    used.add(i);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 检查是否所有块都被使用
+                if (used.size < numBlocks) {
+                    for (let i = 0; i < numBlocks; i++) {
+                        if (!used.has(i)) {
+                            // 尝试插入到合适位置
+                            let inserted = false;
+                            for (let row = 0; row < blockCountB && !inserted; row++) {
+                                for (let col = 0; col < blockCountA && !inserted; col++) {
+                                    if (arrangement[row][col] === undefined || arrangement[row][col] === -1) {
+                                        arrangement[row][col] = i;
+                                        used.add(i);
+                                        inserted = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 确保arrangement完整
+                for (let row = 0; row < blockCountB; row++) {
+                    if (!arrangement[row]) arrangement[row] = [];
+                    for (let col = 0; col < blockCountA; col++) {
+                        if (arrangement[row][col] === undefined || arrangement[row][col] === -1) {
+                            for (let i = 0; i < numBlocks; i++) {
+                                if (!used.has(i)) {
+                                    arrangement[row][col] = i;
+                                    used.add(i);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                correctArrangement = arrangement;
+                return true;
+            }
+
+            function findBestMatch(blockIdx, direction, edges, used, bestDirection) {
+                let bestTarget = -1;
+                let bestScore = Infinity;
+                const numBlocks = edges.length;
+                for (let i = 0; i < numBlocks; i++) {
+                    if (i === blockIdx || used.has(i)) continue;
+                    let score;
+                    if (direction === 'right') {
+                        // 比较blockIdx的右边和i的左边
+                        const len = Math.min(edges[blockIdx].right.length, edges[i].left.length);
+                        let sum = 0;
+                        for (let k = 0; k < len; k++) {
+                            const diff = edges[blockIdx].right[k] - edges[i].left[k];
+                            sum += diff * diff;
+                        }
+                        score = sum / len;
+                    } else if (direction === 'bottom') {
+                        const len = Math.min(edges[blockIdx].bottom.length, edges[i].top.length);
+                        let sum = 0;
+                        for (let k = 0; k < len; k++) {
+                            const diff = edges[blockIdx].bottom[k] - edges[i].top[k];
+                            sum += diff * diff;
+                        }
+                        score = sum / len;
+                    }
+                    if (score < bestScore) {
+                        bestScore = score;
+                        bestTarget = i;
+                    }
+                }
+                return bestTarget;
+            }
+
+            function calculateVariance(arr) {
+                let mean = 0;
+                for (let i = 0; i < arr.length; i++) mean += arr[i];
+                mean /= arr.length;
+                let variance = 0;
+                for (let i = 0; i < arr.length; i++) {
+                    const diff = arr[i] - mean;
+                    variance += diff * diff;
+                }
+                return variance / arr.length;
+            }
+
+            // ==================== 显示还原结果 ====================
+            function displayRightImage(arrangement) {
+                // 清除右侧面板
+                const existingPlaceholder = rightPanelBody.querySelector('.placeholder');
+                if (existingPlaceholder) existingPlaceholder.style.display = 'none';
+                const oldCanvas = rightPanelBody.querySelector('canvas');
+                if (oldCanvas && oldCanvas !== rightCanvas) oldCanvas.remove();
+
+                if (!rightCanvas) {
+                    rightCanvas = document.createElement('canvas');
+                    rightCtx = rightCanvas.getContext('2d');
+                    rightCanvas.style.maxWidth = '100%';
+                    rightCanvas.style.maxHeight = '100%';
+                    rightCanvas.style.objectFit = 'contain';
+                    rightCanvas.style.display = 'block';
+                    rightCanvas.style.borderRadius = '4px';
+                }
+                rightCanvas.width = imgWidth;
+                rightCanvas.height = imgHeight;
+                rightCtx.clearRect(0, 0, imgWidth, imgHeight);
+
+                // 绘制排列后的块
+                for (let row = 0; row < blockCountB; row++) {
+                    for (let col = 0; col < blockCountA; col++) {
+                        const blockIdx = arrangement[row]?.[col];
+                        if (blockIdx !== undefined && blockIdx >= 0 && blockIdx < puzzleBlocks.length) {
+                            const block = puzzleBlocks[blockIdx];
+                            const destX = col * blockWidth;
+                            const destY = row * blockHeight;
+                            rightCtx.drawImage(block.canvas, destX, destY, blockWidth, blockHeight);
+                        }
+                    }
+                }
+
+                if (!rightPanelBody.contains(rightCanvas)) {
+                    rightPanelBody.appendChild(rightCanvas);
+                }
+
+                updateRightCanvasCursor();
+            }
+
+            function updateRightCanvasCursor() {
+                if (rightCanvas) {
+                    if (isManualMode) {
+                        rightCanvas.classList.add('manual-mode');
+                    } else {
+                        rightCanvas.classList.remove('manual-mode');
+                    }
+                }
+            }
+
+            // ==================== 手动调整模式 ====================
+            btnManual.addEventListener('click', function() {
+                if (!originalImg || puzzleBlocks.length === 0 || correctArrangement.length === 0) {
+                    showToast('请先完成还原', 'error');
+                    return;
+                }
+                if (isAnimating) return;
+
+                isManualMode = !isManualMode;
+                if (isManualMode) {
+                    btnManual.classList.add('active');
+                    btnManual.textContent = '✋ 手动模式 (开启)';
+                    // 确保currentArrangement是最新的
+                    if (currentArrangement.length === 0) {
+                        currentArrangement = correctArrangement.map(row => [...row]);
+                    }
+                    displayRightImageWithGrid(currentArrangement);
+                    showToast('手动调整模式已开启，可拖拽块进行交换', 'success');
+                } else {
+                    btnManual.classList.remove('active');
+                    btnManual.textContent = '✋ 手动调整模式';
+                    displayRightImage(currentArrangement);
+                    showToast('手动调整模式已关闭');
+                }
+                updateRightCanvasCursor();
+                btnSave.disabled = false;
+            });
+
+            function displayRightImageWithGrid(arrangement) {
+                const existingPlaceholder = rightPanelBody.querySelector('.placeholder');
+                if (existingPlaceholder) existingPlaceholder.style.display = 'none';
+                const oldCanvas = rightPanelBody.querySelector('canvas');
+                if (oldCanvas && oldCanvas !== rightCanvas) oldCanvas.remove();
+
+                if (!rightCanvas) {
+                    rightCanvas = document.createElement('canvas');
+                    rightCtx = rightCanvas.getContext('2d');
+                    rightCanvas.style.maxWidth = '100%';
+                    rightCanvas.style.maxHeight = '100%';
+                    rightCanvas.style.objectFit = 'contain';
+                    rightCanvas.style.display = 'block';
+                    rightCanvas.style.borderRadius = '4px';
+                }
+                rightCanvas.width = imgWidth;
+                rightCanvas.height = imgHeight;
+                rightCtx.clearRect(0, 0, imgWidth, imgHeight);
+
+                // 绘制块
+                for (let row = 0; row < blockCountB; row++) {
+                    for (let col = 0; col < blockCountA; col++) {
+                        const blockIdx = arrangement[row]?.[col];
+                        if (blockIdx !== undefined && blockIdx >= 0 && blockIdx < puzzleBlocks.length) {
+                            const block = puzzleBlocks[blockIdx];
+                            const destX = col * blockWidth;
+                            const destY = row * blockHeight;
+                            rightCtx.drawImage(block.canvas, destX, destY, blockWidth, blockHeight);
+                        }
+                    }
+                }
+
+                // 绘制网格线
+                rightCtx.strokeStyle = 'rgba(255,255,255,0.55)';
+                rightCtx.lineWidth = 1.5;
+                rightCtx.setLineDash([4, 3]);
+                for (let row = 1; row < blockCountB; row++) {
+                    const y = row * blockHeight;
+                    rightCtx.beginPath();
+                    rightCtx.moveTo(0, y);
+                    rightCtx.lineTo(imgWidth, y);
+                    rightCtx.stroke();
+                }
+                for (let col = 1; col < blockCountA; col++) {
+                    const x = col * blockWidth;
+                    rightCtx.beginPath();
+                    rightCtx.moveTo(x, 0);
+                    rightCtx.lineTo(x, imgHeight);
+                    rightCtx.stroke();
+                }
+                rightCtx.setLineDash([]);
+
+                // 再绘制一层深色细线以确保可见性
+                rightCtx.strokeStyle = 'rgba(0,0,0,0.3)';
+                rightCtx.lineWidth = 0.8;
+                rightCtx.setLineDash([2, 4]);
+                for (let row = 1; row < blockCountB; row++) {
+                    const y = row * blockHeight;
+                    rightCtx.beginPath();
+                    rightCtx.moveTo(0, y);
+                    rightCtx.lineTo(imgWidth, y);
+                    rightCtx.stroke();
+                }
+                for (let col = 1; col < blockCountA; col++) {
+                    const x = col * blockWidth;
+                    rightCtx.beginPath();
+                    rightCtx.moveTo(x, 0);
+                    rightCtx.lineTo(x, imgHeight);
+                    rightCtx.stroke();
+                }
+                rightCtx.setLineDash([]);
+
+                if (!rightPanelBody.contains(rightCanvas)) {
+                    rightPanelBody.appendChild(rightCanvas);
+                }
+                updateRightCanvasCursor();
+            }
+
+            // ==================== 右侧Canvas拖拽交换 ====================
+            function getBlockFromPoint(clientX, clientY) {
+                if (!rightCanvas || !isManualMode) return null;
+                const rect = rightCanvas.getBoundingClientRect();
+                const scaleX = imgWidth / rect.width;
+                const scaleY = imgHeight / rect.height;
+                const x = (clientX - rect.left) * scaleX;
+                const y = (clientY - rect.top) * scaleY;
+                if (x < 0 || y < 0 || x >= imgWidth || y >= imgHeight) return null;
+                const col = Math.floor(x / blockWidth);
+                const row = Math.floor(y / blockHeight);
+                if (col >= 0 && col < blockCountA && row >= 0 && row < blockCountB) {
+                    return { row, col };
+                }
+                return null;
+            }
+
+            rightPanelBody.addEventListener('mousedown', function(e) {
+                if (!isManualMode || isAnimating || !rightCanvas) return;
+                const blockPos = getBlockFromPoint(e.clientX, e.clientY);
+                if (!blockPos) return;
+                e.preventDefault();
+                dragState = {
+                    sourceRow: blockPos.row,
+                    sourceCol: blockPos.col,
+                    startX: e.clientX,
+                    startY: e.clientY,
+                };
+                hoverTarget = null;
+                rightCanvas.style.cursor = 'grabbing';
+                // 高亮源块
+                highlightBlock(blockPos.row, blockPos.col);
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (!dragState || !isManualMode || isAnimating) return;
+                if (!rightCanvas) return;
+
+                const blockPos = getBlockFromPoint(e.clientX, e.clientY);
+                if (blockPos) {
+                    if (!hoverTarget || hoverTarget.row !== blockPos.row || hoverTarget.col !== blockPos.col) {
+                        // 清除旧高亮
+                        if (hoverTarget) {
+                            clearHighlight();
+                        }
+                        hoverTarget = blockPos;
+                        // 如果目标与源不同，高亮目标
+                        if (hoverTarget.row !== dragState.sourceRow || hoverTarget.col !== dragState.sourceCol) {
+                            highlightBlock(hoverTarget.row, hoverTarget.col, true);
+                        } else {
+                            hoverTarget = null;
+                            highlightBlock(dragState.sourceRow, dragState.sourceCol);
+                        }
+                    }
+                } else {
+                    if (hoverTarget) {
+                        clearHighlight();
+                        hoverTarget = null;
+                    }
+                    // 恢复源高亮
+                    highlightBlock(dragState.sourceRow, dragState.sourceCol);
+                }
+            });
+
+            document.addEventListener('mouseup', function(e) {
+                if (!dragState || !isManualMode || isAnimating) {
+                    dragState = null;
+                    hoverTarget = null;
+                    if (rightCanvas) rightCanvas.style.cursor = isManualMode ? 'grab' : 'default';
+                    clearHighlight();
+                    return;
+                }
+
+                const blockPos = getBlockFromPoint(e.clientX, e.clientY);
+                clearHighlight();
+
+                if (blockPos &&
+                    (blockPos.row !== dragState.sourceRow || blockPos.col !== dragState.sourceCol) &&
+                    blockPos.row >= 0 && blockPos.row < blockCountB &&
+                    blockPos.col >= 0 && blockPos.col < blockCountA) {
+                    // 执行交换
+                    performSwap(
+                        dragState.sourceRow, dragState.sourceCol,
+                        blockPos.row, blockPos.col
+                    );
+                } else {
+                    // 取消拖拽，重新显示
+                    displayRightImageWithGrid(currentArrangement);
+                }
+
+                dragState = null;
+                hoverTarget = null;
+                if (rightCanvas) rightCanvas.style.cursor = isManualMode ? 'grab' : 'default';
+            });
+
+            // 触摸事件支持
+            rightPanelBody.addEventListener('touchstart', function(e) {
+                if (!isManualMode || isAnimating || !rightCanvas) return;
+                if (e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    const blockPos = getBlockFromPoint(touch.clientX, touch.clientY);
+                    if (blockPos) {
+                        e.preventDefault();
+                        dragState = {
+                            sourceRow: blockPos.row,
+                            sourceCol: blockPos.col,
+                            startX: touch.clientX,
+                            startY: touch.clientY,
+                        };
+                        hoverTarget = null;
+                        highlightBlock(blockPos.row, blockPos.col);
+                    }
+                }
+            }, { passive: false });
+
+            rightPanelBody.addEventListener('touchmove', function(e) {
+                if (!dragState || !isManualMode || isAnimating) return;
+                e.preventDefault();
+                const touch = e.touches[0];
+                const blockPos = getBlockFromPoint(touch.clientX, touch.clientY);
+                if (blockPos) {
+                    if (!hoverTarget || hoverTarget.row !== blockPos.row || hoverTarget.col !== blockPos.col) {
+                        if (hoverTarget) clearHighlight();
+                        hoverTarget = blockPos;
+                        if (hoverTarget.row !== dragState.sourceRow || hoverTarget.col !== dragState.sourceCol) {
+                            highlightBlock(hoverTarget.row, hoverTarget.col, true);
+                        } else {
+                            hoverTarget = null;
+                            highlightBlock(dragState.sourceRow, dragState.sourceCol);
+                        }
+                    }
+                }
+            }, { passive: false });
+
+            rightPanelBody.addEventListener('touchend', function(e) {
+                if (!dragState || !isManualMode || isAnimating) {
+                    dragState = null;
+                    hoverTarget = null;
+                    clearHighlight();
+                    return;
+                }
+                const touch = e.changedTouches[0];
+                const blockPos = getBlockFromPoint(touch.clientX, touch.clientY);
+                clearHighlight();
+                if (blockPos &&
+                    (blockPos.row !== dragState.sourceRow || blockPos.col !== dragState.sourceCol) &&
+                    blockPos.row >= 0 && blockPos.row < blockCountB &&
+                    blockPos.col >= 0 && blockPos.col < blockCountA) {
+                    performSwap(dragState.sourceRow, dragState.sourceCol, blockPos.row, blockPos.col);
+                } else {
+                    displayRightImageWithGrid(currentArrangement);
+                }
+                dragState = null;
+                hoverTarget = null;
+            });
+
+            function highlightBlock(row, col, isTarget = false) {
+                if (!rightCtx || !rightCanvas) return;
+                // 重新绘制所有内容并添加高亮
+                displayRightImageWithGrid(currentArrangement);
+                const x = col * blockWidth;
+                const y = row * blockHeight;
+                if (isTarget) {
+                    rightCtx.fillStyle = 'rgba(255,200,60,0.35)';
+                } else {
+                    rightCtx.fillStyle = 'rgba(91,155,213,0.4)';
+                }
+                rightCtx.fillRect(x, y, blockWidth, blockHeight);
+                rightCtx.strokeStyle = isTarget ? 'rgba(255,180,30,0.9)' : 'rgba(91,155,213,0.9)';
+                rightCtx.lineWidth = 3;
+                rightCtx.setLineDash([]);
+                rightCtx.strokeRect(x + 1.5, y + 1.5, blockWidth - 3, blockHeight - 3);
+            }
+
+            function clearHighlight() {
+                if (!rightCtx || !rightCanvas || isAnimating) return;
+                displayRightImageWithGrid(currentArrangement);
+            }
+
+            function performSwap(row1, col1, row2, col2) {
+                if (isAnimating) return;
+                isAnimating = true;
+
+                const blockIdx1 = currentArrangement[row1][col1];
+                const blockIdx2 = currentArrangement[row2][col2];
+
+                // 交换排列中的数据
+                currentArrangement[row1][col1] = blockIdx2;
+                currentArrangement[row2][col2] = blockIdx1;
+
+                // 动画参数
+                const duration = 350; // ms
+                const startTime = performance.now();
+                const x1 = col1 * blockWidth;
+                const y1 = row1 * blockHeight;
+                const x2 = col2 * blockWidth;
+                const y2 = row2 * blockHeight;
+
+                function easeInOutCubic(t) {
+                    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                }
+
+                function animateSwap(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(1, elapsed / duration);
+                    const easedProgress = easeInOutCubic(progress);
+
+                    // 重新绘制
+                    rightCtx.clearRect(0, 0, imgWidth, imgHeight);
+
+                    // 绘制所有非交换块
+                    for (let row = 0; row < blockCountB; row++) {
+                        for (let col = 0; col < blockCountA; col++) {
+                            if ((row === row1 && col === col1) || (row === row2 && col === col2)) continue;
+                            const blockIdx = currentArrangement[row][col];
+                            if (blockIdx !== undefined && blockIdx >= 0 && blockIdx < puzzleBlocks.length) {
+                                const destX = col * blockWidth;
+                                const destY = row * blockHeight;
+                                rightCtx.drawImage(puzzleBlocks[blockIdx].canvas, destX, destY, blockWidth,
+                                    blockHeight);
+                            }
+                        }
+                    }
+
+                    // 绘制交换中的两个块（带位移）
+                    const offsetX = (x2 - x1) * easedProgress;
+                    const offsetY = (y2 - y1) * easedProgress;
+                    const currentX1 = x1 + offsetX;
+                    const currentY1 = y1 + offsetY;
+                    const currentX2 = x2 - offsetX;
+                    const currentY2 = y2 - offsetY;
+
+                    // 块1（现在在currentArrangement[row1][col1]即原来的blockIdx2）移向位置1
+                    // 实际上，动画显示的是：原来在(row1,col1)的块移动到(row2,col2)，反之亦然
+                    // 所以我们绘制blockIdx2（现在属于row1,col1）从x2,y2移动到x1,y1
+                    // 绘制blockIdx1（现在属于row2,col2）从x1,y1移动到x2,y2
+                    rightCtx.drawImage(puzzleBlocks[blockIdx2].canvas, currentX2, currentY2, blockWidth, blockHeight);
+                    rightCtx.drawImage(puzzleBlocks[blockIdx1].canvas, currentX1, currentY1, blockWidth, blockHeight);
+
+                    // 绘制网格线
+                    rightCtx.strokeStyle = 'rgba(255,255,255,0.55)';
+                    rightCtx.lineWidth = 1.5;
+                    rightCtx.setLineDash([4, 3]);
+                    for (let row = 1; row < blockCountB; row++) {
+                        const y = row * blockHeight;
+                        rightCtx.beginPath();
+                        rightCtx.moveTo(0, y);
+                        rightCtx.lineTo(imgWidth, y);
+                        rightCtx.stroke();
+                    }
+                    for (let col = 1; col < blockCountA; col++) {
+                        const x = col * blockWidth;
+                        rightCtx.beginPath();
+                        rightCtx.moveTo(x, 0);
+                        rightCtx.lineTo(x, imgHeight);
+                        rightCtx.stroke();
+                    }
+                    rightCtx.setLineDash([]);
+                    rightCtx.strokeStyle = 'rgba(0,0,0,0.3)';
+                    rightCtx.lineWidth = 0.8;
+                    rightCtx.setLineDash([2, 4]);
+                    for (let row = 1; row < blockCountB; row++) {
+                        const y = row * blockHeight;
+                        rightCtx.beginPath();
+                        rightCtx.moveTo(0, y);
+                        rightCtx.lineTo(imgWidth, y);
+                        rightCtx.stroke();
+                    }
+                    for (let col = 1; col < blockCountA; col++) {
+                        const x = col * blockWidth;
+                        rightCtx.beginPath();
+                        rightCtx.moveTo(x, 0);
+                        rightCtx.lineTo(x, imgHeight);
+                        rightCtx.stroke();
+                    }
+                    rightCtx.setLineDash([]);
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animateSwap);
+                    } else {
+                        // 动画完成
+                        displayRightImageWithGrid(currentArrangement);
+                        isAnimating = false;
+                        btnSave.disabled = false;
+                    }
+                }
+
+                requestAnimationFrame(animateSwap);
+            }
+
+            // ==================== 保存图片 ====================
+            btnSave.addEventListener('click', function() {
+                if (!rightCanvas || isAnimating) {
+                    showToast('没有可保存的图片', 'error');
+                    return;
+                }
+                // 创建一个临时canvas来生成不含网格线的图片
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = imgWidth;
+                tempCanvas.height = imgHeight;
+                const tempCtx = tempCanvas.getContext('2d');
+
+                // 绘制当前排列（不含网格线）
+                for (let row = 0; row < blockCountB; row++) {
+                    for (let col = 0; col < blockCountA; col++) {
+                        const blockIdx = currentArrangement[row]?.[col];
+                        if (blockIdx !== undefined && blockIdx >= 0 && blockIdx < puzzleBlocks.length) {
+                            const destX = col * blockWidth;
+                            const destY = row * blockHeight;
+                            tempCtx.drawImage(puzzleBlocks[blockIdx].canvas, destX, destY, blockWidth, blockHeight);
+                        }
+                    }
+                }
+
+                tempCanvas.toBlob(function(blob) {
+                    if (!blob) {
+                        showToast('保存失败', 'error');
+                        return;
+                    }
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                    a.download = `puzzle-restored-${timestamp}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showToast('图片已保存到本地', 'success');
+                }, 'image/png');
+            });
+
+            // ==================== 键盘快捷键 ====================
+            document.addEventListener('keydown', function(e) {
+                if (isAnimating) return;
+                if (e.ctrlKey && e.key === 's') {
+                    e.preventDefault();
+                    if (btnSave.disabled === false) {
+                        btnSave.click();
+                    }
+                }
+                if (e.key === 'm' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    if (btnManual.disabled === false && document.activeElement === document.body) {
+                        btnManual.click();
+                    }
+                }
+                if (e.key === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    if (btnRestore.disabled === false && document.activeElement === document.body) {
+                        btnRestore.click();
+                    }
+                }
+                if (e.key === 'd' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    if (btnDetect.disabled === false && document.activeElement === document.body) {
+                        btnDetect.click();
+                    }
+                }
+            });
+
+            // ==================== 初始化 ====================
+            function init() {
+                updateParamInputs();
+                btnRestore.disabled = true;
+                btnManual.disabled = true;
+                btnSave.disabled = true;
+                updateRightCanvasCursor();
+            }
+
+            init();
+            console.log('🧩 Puzzle解算器已就绪');
+            console.log('  功能：加载图片 → 检测块大小 → 自动还原 → 手动微调 → 保存');
+            console.log('  快捷键：D=检测 R=还原 M=手动模式 Ctrl+S=保存');
+            console.log('  支持拖拽图片到左侧区域，也支持Ctrl+V粘贴图片');
+        })();
+    </script>
+</body>
+</html>
