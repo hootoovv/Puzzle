@@ -367,8 +367,15 @@ def encrypt_image(input_path, block_w, block_h, extract_start, extract_order,
     orig_h, orig_w = img.shape[:2]
     
     # 获取原始图片格式
-    orig_format = os.path.splitext(input_path)[1].lstrip('.')
-    if not orig_format:
+    SUPPORTED_FORMATS = {'bmp', 'png', 'jpg', 'jpeg', 'webp'}
+    orig_format = os.path.splitext(input_path)[1].lstrip('.').lower()
+    if not orig_format or orig_format not in SUPPORTED_FORMATS:
+        orig_format = 'jpg'
+    # 统一格式名
+    if orig_format in ('jpeg',):
+        orig_format = 'jpg'
+    if orig_format not in SUPPORTED_FORMATS:
+        print(f"警告: 不支持的图片格式 '{orig_format}'，将使用jpg格式保存")
         orig_format = 'jpg'
     
     # 2. Padding处理
@@ -486,6 +493,25 @@ def encrypt_image(input_path, block_w, block_h, extract_start, extract_order,
     
     print(f"加密完成，解密参数: {param_str}")
     print(f"加密图片已保存到: {output_path}")
+
+
+# ============================================================
+# 辅助函数
+# ============================================================
+
+def _fix_output_ext(output_path, orig_format):
+    """
+    修正输出文件名的扩展名，使其与原图格式一致。
+    如果输出路径包含扩展名，则替换为原图格式的扩展名；
+    如果不包含扩展名，则添加原图格式的扩展名。
+    """
+    base, ext = os.path.splitext(output_path)
+    if ext:
+        # 有扩展名，替换为原图格式的扩展名
+        return base + '.' + orig_format
+    else:
+        # 无扩展名，添加原图格式的扩展名
+        return output_path + '.' + orig_format
 
 
 # ============================================================
@@ -649,7 +675,37 @@ def decrypt_image(input_path, output_path):
     decrypted_img = decrypted_padded[:orig_h, :orig_w]
     
     # 7. 保存解密图片
-    cv2.imwrite(output_path, decrypted_img)
+    # 根据原始格式修正输出文件名扩展名
+    output_path = _fix_output_ext(output_path, orig_format)
+    
+    save_format = orig_format.upper()
+    if save_format == 'JPG':
+        save_format = 'JPEG'
+    
+    # 使用Pillow保存以支持不同格式的参数控制
+    from PIL import Image as PILImage
+    
+    # 将OpenCV图片(BGR)转为PIL图片(RGB)
+    if len(decrypted_img.shape) == 3 and decrypted_img.shape[2] == 4:
+        decrypted_rgb = cv2.cvtColor(decrypted_img, cv2.COLOR_BGRA2RGBA)
+    elif len(decrypted_img.shape) == 3:
+        decrypted_rgb = cv2.cvtColor(decrypted_img, cv2.COLOR_BGR2RGB)
+    else:
+        decrypted_rgb = decrypted_img
+    
+    pil_img = PILImage.fromarray(decrypted_rgb)
+    
+    if save_format == 'JPEG':
+        if pil_img.mode == 'RGBA':
+            pil_img = pil_img.convert('RGB')
+        pil_img.save(output_path, 'JPEG', quality=95)
+    elif save_format == 'WEBP':
+        # WebP支持RGBA
+        pil_img.save(output_path, 'WEBP', quality=95)
+    else:
+        # BMP, PNG等
+        pil_img.save(output_path, save_format)
+    
     print(f"解密完成，图片已保存到: {output_path}")
     print(f"原始尺寸: {orig_w}x{orig_h}")
 
