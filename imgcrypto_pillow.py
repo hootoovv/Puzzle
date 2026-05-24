@@ -344,11 +344,24 @@ def encrypt_image(input_path, block_w, block_h, extract_start, extract_order,
     pad_h = (block_h - orig_h % block_h) % block_h
     
     if pad_w > 0 or pad_h > 0:
-        # 创建新的黑色画布并粘贴原图
+        # 创建新画布并粘贴原图
         padded_w = orig_w + pad_w
         padded_h = orig_h + pad_h
         img_padded = Image.new(img.mode, (padded_w, padded_h), (0, 0, 0) if img.mode == 'RGB' else (0, 0, 0, 255))
         img_padded.paste(img, (0, 0))
+        
+        # 使用相邻像素颜色填充padding区域（而非纯黑色），增加破解难度
+        # 右侧padding：复制每行最右侧像素的颜色值填充该行padding像素
+        if pad_w > 0:
+            right_col = img.crop((orig_w - 1, 0, orig_w, orig_h))
+            right_pad = right_col.resize((pad_w, orig_h), Image.NEAREST)
+            img_padded.paste(right_pad, (orig_w, 0))
+        
+        # 底部padding：复制每列最下部像素的颜色值填充该列padding像素（包含已填充的右侧区域）
+        if pad_h > 0:
+            bottom_row = img_padded.crop((0, orig_h - 1, padded_w, orig_h))
+            bottom_pad = bottom_row.resize((padded_w, pad_h), Image.NEAREST)
+            img_padded.paste(bottom_pad, (0, orig_h))
     else:
         img_padded = img.copy()
     

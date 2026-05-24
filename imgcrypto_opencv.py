@@ -376,9 +376,12 @@ def encrypt_image(input_path, block_w, block_h, extract_start, extract_order,
     pad_h = (block_h - orig_h % block_h) % block_h
     
     if pad_w > 0 or pad_h > 0:
+        # 使用相邻像素颜色填充padding区域（BORDER_REPLICATE复制边缘像素），增加破解难度
+        # 右侧padding：复制每行最右侧像素的颜色值填充该行padding像素
+        # 底部padding：复制每列最下部像素的颜色值填充该列padding像素
         # OpenCV的copyMakeBorder: top, bottom, left, right
         img_padded = cv2.copyMakeBorder(img, 0, pad_h, 0, pad_w,
-                                         cv2.BORDER_CONSTANT, value=0)
+                                         cv2.BORDER_REPLICATE)
     else:
         img_padded = img.copy()
     
