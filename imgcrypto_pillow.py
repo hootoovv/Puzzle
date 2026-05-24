@@ -20,112 +20,64 @@ except ImportError:
     sys.exit(1)
 
 try:
-    import piexif
+    import mpmath
 except ImportError:
-    print("错误: 需要安装piexif: pip install piexif")
+    print("错误: 需要安装mpmath: pip install mpmath")
     sys.exit(1)
+
+# piexif仅用于JPEG格式（可选）
+try:
+    import piexif
+    HAS_PIEXIF = True
+except ImportError:
+    HAS_PIEXIF = False
 
 
 # ============================================================
 # 数学常数数字序列生成
 # ============================================================
 
-def get_pi_digits(count):
-    """生成圆周率π的十进制数字序列"""
-    _pi_str = (
-        "31415926535897932384626433832795028841971693993751"
-        "05820974944592307816406286208998628034825342117067"
-        "98214808651328230664709384460955058223172535940812"
-        "84811174502841027019385211055596446229489549303819"
-        "64428810975665933446128475648233786783165271201909"
-        "14564856692346034861045432664821339360726024914127"
-        "37245870066063155881748815209209628292540917153643"
-        "67892590360011330530548820466521384146951941511609"
-        "43305727036575959195309218611738193261179310511854"
-        "80744623799627495673518857527248912279381830119491"
-        "29833673362440656643086021394946395224737190702179"
-        "86094370277053921717629317675238467481846766940513"
-        "20005681271452635608277857713427577896091736371787"
-        "21468440901224953430146549585371050792279689258923"
-        "54201995611212902196086403441815981362977477130996"
-        "05187072113499999983729780499510597317328160963185"
-        "95024459455346908302642522308253344685035261931188"
-        "17101000313783875288658753320838142061717766914730"
-        "35982534904287554687311595628638823537875937519577"
-        "81857780532171226806613001927876611195909216420199"
-    )
-    digits = [int(c) for c in _pi_str[:count]]
-    if len(digits) < count:
-        digits.extend([int(c) for c in str(math.pi)[2:2 + count - len(digits)]])
-    return digits[:count]
+# 常数缓存，避免重复计算
+_const_cache = {}
 
-
-def get_e_digits(count):
-    """生成自然常数e的十进制数字序列"""
-    _e_str = (
-        "27182818284590452353602874713526624977572470936999"
-        "59574966967627724076630353547594571382178525166427"
-        "42746639193200305992181741359662904357290033429526"
-        "05956307381323286279434907632338298807531952510190"
-        "11573834187930702154089149934884167509244761460668"
-        "08226480016847741185374234544243710753907774499206"
-        "95517027618386062613313845830007520449338265602976"
-        "06737113200709328709144255358269157639937530207204"
-        "07432135940875632512342961329618944624572474385618"
-        "80445769630679270072276405467759647093872530906336"
-        "60853271144849344369706395264456867626974554982280"
-        "67825282664387829540464154361058037561640134771063"
-        "84590947807934644094798998894859901944062711346569"
-        "67103207225738379301928384381807150601557993690547"
-        "44981992122393218917643549125866533816842673636836"
-        "73359554973686851407215420885251681391627212854090"
-        "06875057884530968391682084321466026654482871053316"
-        "52979347446722657704997049678454675684526839947517"
-        "47554124083244095206777075656545283494309394126758"
-        "69846961269766125536814587019434803603347871781790"
-    )
-    digits = [int(c) for c in _e_str[:count]]
-    return digits[:count]
-
-
-def get_phi_digits(count):
-    """生成黄金比例φ的十进制数字序列"""
-    _phi_str = (
-        "16180339887498948482045868343656381177203091798057"
-        "62862135448622705260462818902449707207204189391137"
-        "48475408807538689175212663386222353693179318006076"
-        "67263544333890865959395829056383226613199282902678"
-        "80675208766892501711696207032221043216269548626296"
-        "31361443814975870122034080588795445474924618569536"
-        "48006440972011691714755431680753379565646592729587"
-        "09010767324751074167361764073129340740829693607895"
-        "58615484252645224017643250348206476658092862091273"
-        "49630339344686862540150116922082618572844938463656"
-        "58698229636851160204858729366754090364536294004498"
-        "75876326451034163030067474577231875946504543606480"
-        "40645745132911402786653489893713905471740320470398"
-        "65323294154917064055308643428664752556567479092957"
-        "82304489740087287859649669303139075318665694683542"
-        "69564876994036406534155194284246567126219867160221"
-        "23050546459726437715429602047007441250023175843957"
-        "52957109209163681516024451579488747183597567859464"
-        "42445898614990776465706334693205330535580315564967"
-        "36585664424173534071763547750565569814335786562418"
-    )
-    digits = [int(c) for c in _phi_str[:count]]
-    return digits[:count]
+def _get_const_digits(const_name, count):
+    """使用mpmath动态计算数学常数的十进制数字序列"""
+    if const_name in _const_cache and len(_const_cache[const_name]) >= count:
+        return _const_cache[const_name][:count]
+    
+    # 计算多一点余量
+    mpmath.mp.dps = count + 10
+    
+    if const_name == 'pi':
+        s = str(mpmath.mp.pi)
+    elif const_name == 'e':
+        s = str(mpmath.mp.e)
+    elif const_name == 'phi':
+        s = str((1 + mpmath.sqrt(5)) / 2)
+    else:
+        raise ValueError(f"未知常数: {const_name}")
+    
+    # 去掉整数部分和小数点，只取小数部分
+    if '.' in s:
+        digits_str = s.replace('.', '')[1:]  # 去掉 '3.' / '2.' / '1.'
+    else:
+        digits_str = s
+    
+    digits = [int(c) for c in digits_str[:count]]
+    _const_cache[const_name] = digits
+    return digits
 
 
 def get_digit_sequence(key, count):
     """根据序列键获取十进制数字序列"""
-    needed = max(count * 3, 1000)
+    needed = max(math.ceil(count * 1.5), 1000)
     
     if key == 'pi':
-        return get_pi_digits(needed)
+        return _get_const_digits('pi', needed)
     elif key == 'e':
-        return get_e_digits(needed)
+        return _get_const_digits('e', needed)
     elif key == 'phi':
-        return get_phi_digits(needed)
+        return _get_const_digits('phi', needed)
     else:
         return [int(c) for c in key if c.isdigit()]
 
@@ -471,20 +423,10 @@ def encrypt_image(input_path, block_w, block_h, extract_start, extract_order,
     # 6. 保存加密图片（PNG格式，含EXIF解密参数）
     param_str = f"{pad_w}x{pad_h}_{block_w}x{block_h}_{extract_start}{extract_order}_{output_start}{output_order}.{orig_format}.{sequence_key}"
     
-    # PNG使用PngInfo存储元数据，同时尝试写入EXIF
+    # PNG使用PngInfo存储元数据（tEXt块，key为Parameters）
     from PIL import PngImagePlugin
     pnginfo = PngImagePlugin.PngInfo()
-    pnginfo.add_text('UserComment', param_str)
-    
-    # 同时构建EXIF数据嵌入PNG
-    try:
-        exif_dict = {"0th": {}, "Exif": {}, "GPS": {}, "1st": {}, "Interop": {}}
-        user_comment = b'ASCII\x00\x00\x00' + param_str.encode('ascii')
-        exif_dict["Exif"][piexif.ExifIFD.UserComment] = user_comment
-        exif_bytes = piexif.dump(exif_dict)
-        encrypted_img.info['exif'] = exif_bytes
-    except Exception:
-        pass
+    pnginfo.add_text('Parameters', param_str)
     
     encrypted_img.save(output_path, 'PNG', pnginfo=pnginfo)
     
@@ -504,28 +446,16 @@ def decrypt_image(input_path, output_path):
     img_for_meta = Image.open(input_path)
     param_str = None
     
-    # 首先尝试从PNG tEXt块读取
-    if 'UserComment' in img_for_meta.info:
+    # 首先尝试从PNG tEXt块读取（Parameters键）
+    if 'Parameters' in img_for_meta.info:
+        param_str = img_for_meta.info['Parameters']
+    elif 'parameters' in img_for_meta.info:
+        param_str = img_for_meta.info['parameters']
+    # 兼容旧版本的UserComment键
+    elif 'UserComment' in img_for_meta.info:
         param_str = img_for_meta.info['UserComment']
-    
-    # 然后尝试从EXIF读取
-    if param_str is None:
-        try:
-            exif_dict = piexif.load(input_path)
-            user_comment_bytes = exif_dict.get("Exif", {}).get(piexif.ExifIFD.UserComment, None)
-            if user_comment_bytes is not None:
-                if isinstance(user_comment_bytes, bytes):
-                    if user_comment_bytes[:8] == b'ASCII\x00\x00\x00':
-                        param_str = user_comment_bytes[8:].decode('ascii')
-                    else:
-                        param_str = user_comment_bytes.decode('ascii', errors='ignore')
-                else:
-                    param_str = str(user_comment_bytes)
-        except Exception:
-            pass
-    
-    # 最后尝试从PNG文件的exif数据读取
-    if param_str is None and 'exif' in img_for_meta.info:
+    # 尝试从EXIF读取（仅JPEG或旧版PNG）
+    elif HAS_PIEXIF and 'exif' in img_for_meta.info:
         try:
             exif_dict = piexif.load(img_for_meta.info['exif'])
             user_comment_bytes = exif_dict.get("Exif", {}).get(piexif.ExifIFD.UserComment, None)
@@ -539,7 +469,7 @@ def decrypt_image(input_path, output_path):
             pass
     
     if param_str is None:
-        raise RuntimeError("加密图片中未找到解密参数（UserComment标签缺失）")
+        raise RuntimeError("加密图片中未找到解密参数（PNG tEXt块中无Parameters字段）")
     
     print(f"解密参数: {param_str}")
     

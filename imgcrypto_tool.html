@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>图片加密解密工具 - 基于视觉扰乱与数字序列驱动</title>
-<script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #1a1a1a; }
@@ -13,25 +12,40 @@ body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; ba
 .header h1 { font-size: 22px; font-weight: 600; }
 .header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
 
-.params-bar { background: white; padding: 14px 24px; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-bottom: 2px solid #e3e8ef; }
+.params-bar { background: white; padding: 14px 24px; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-bottom: 2px solid #e3e8ef; position: relative; }
 .param-group { display: flex; flex-direction: column; gap: 3px; }
 .param-group label { font-size: 12px; color: #5f6368; font-weight: 500; }
-.param-group select, .param-group input { padding: 6px 10px; border: 1px solid #dadce0; border-radius: 6px; font-size: 13px; background: #f8f9fa; min-width: 80px; }
+.param-group select, .param-group input { padding: 6px 10px; border: 1px solid #dadce0; border-radius: 6px; font-size: 13px; background: #f8f9fa; min-width: 80px; transition: background 0.2s, border-color 0.2s; }
 .param-group select:focus, .param-group input:focus { border-color: #1a73e8; outline: none; background: white; }
+.param-group select:disabled, .param-group input:disabled { background: #e8eaed; color: #5f6368; cursor: not-allowed; border-color: #dadce0; }
+
+.mode-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+.mode-badge.encrypt-mode { background: #e8f0fe; color: #1a73e8; }
+.mode-badge.decrypt-mode { background: #e6f4ea; color: #137333; }
+.mode-badge.idle-mode { background: #f1f3f4; color: #5f6368; }
+.mode-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+.mode-badge.encrypt-mode .dot { background: #1a73e8; }
+.mode-badge.decrypt-mode .dot { background: #34a853; }
+.mode-badge.idle-mode .dot { background: #9aa0a6; }
 
 .btn-group { display: flex; gap: 10px; align-items: flex-end; padding-bottom: 2px; }
 .btn { padding: 8px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
 .btn-encrypt { background: #1a73e8; color: white; }
-.btn-encrypt:hover { background: #1557b0; }
+.btn-encrypt:hover:not(:disabled) { background: #1557b0; }
 .btn-decrypt { background: #34a853; color: white; }
-.btn-decrypt:hover { background: #2d8e47; }
+.btn-decrypt:hover:not(:disabled) { background: #2d8e47; }
 .btn-save { background: #f9ab00; color: white; }
-.btn-save:hover { background: #e09900; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-save:hover:not(:disabled) { background: #e09900; }
+.btn-reset { background: #5f6368; color: white; }
+.btn-reset:hover:not(:disabled) { background: #424242; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .main-area { display: flex; gap: 16px; padding: 16px 24px; height: calc(100vh - 160px); min-height: 400px; }
 
-.panel { flex: 1; background: white; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); display: flex; flex-direction: column; overflow: hidden; }
+.panel { flex: 1; background: white; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); display: flex; flex-direction: column; overflow: hidden; transition: opacity 0.3s; }
+.panel.disabled-panel { pointer-events: none; }
+.panel.disabled-panel .drop-zone { border-style: dotted; border-color: #ccc; }
+.panel.disabled-panel .placeholder { opacity: 0.4; }
 .panel-header { padding: 12px 16px; background: #f8f9fa; border-bottom: 1px solid #e8eaed; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .panel-header .dot { width: 10px; height: 10px; border-radius: 50%; }
 .panel-header .dot-blue { background: #1a73e8; }
@@ -54,13 +68,16 @@ body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; ba
 .progress-bar-fill { height: 100%; background: #1a73e8; border-radius: 3px; transition: width 0.3s; }
 .progress-text { font-size: 14px; color: #5f6368; margin-top: 6px; }
 
-.toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; color: white; font-size: 14px; z-index: 1000; opacity: 0; transition: opacity 0.3s; }
+.toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; color: white; font-size: 14px; z-index: 1000; opacity: 0; transition: opacity 0.3s; max-width: 400px; }
 .toast.show { opacity: 1; }
 .toast-success { background: #34a853; }
 .toast-error { background: #ea4335; }
 .toast-info { background: #1a73e8; }
 
 .hidden { display: none !important; }
+
+.metadata-display { padding: 8px 16px; background: #e6f4ea; border: 1px solid #ceead6; border-radius: 6px; font-size: 12px; color: #137333; margin-top: 4px; }
+.metadata-display .label { font-weight: 600; margin-right: 6px; }
 </style>
 </head>
 <body>
@@ -71,6 +88,10 @@ body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; ba
 </div>
 
 <div class="params-bar">
+  <div class="param-group" style="flex-direction:row; align-items:center; gap:8px;">
+    <span class="mode-badge idle-mode" id="modeBadge"><span class="dot"></span><span id="modeText">待选择</span></span>
+    <button class="btn btn-reset hidden" id="btnReset" onclick="resetAll()">重置</button>
+  </div>
   <div class="param-group">
     <label>块宽度 (a)</label>
     <input type="number" id="blockW" value="8" min="1" max="256" style="width:70px">
@@ -122,9 +143,9 @@ body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; ba
   <div class="param-group">
     <label>数字序列C</label>
     <select id="sequenceKey">
-      <option value="pi">π (圆周率)</option>
+      <option value="pi">&pi; (圆周率)</option>
       <option value="e">e (自然常数)</option>
-      <option value="phi">φ (黄金比例)</option>
+      <option value="phi">&phi; (黄金比例)</option>
       <option value="custom">自定义序列</option>
     </select>
   </div>
@@ -133,8 +154,8 @@ body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; ba
     <input type="text" id="customSeq" placeholder="如: 31415926535" style="width:140px">
   </div>
   <div class="btn-group">
-    <button class="btn btn-encrypt" id="btnEncrypt" onclick="doEncrypt()">加密 →</button>
-    <button class="btn btn-decrypt" id="btnDecrypt" onclick="doDecrypt()">← 解密</button>
+    <button class="btn btn-encrypt" id="btnEncrypt" onclick="doEncrypt()" disabled>加密 &rarr;</button>
+    <button class="btn btn-decrypt" id="btnDecrypt" onclick="doDecrypt()" disabled>&larr; 解密</button>
     <button class="btn btn-save" id="btnSave" onclick="doSave()" disabled>保存加密图</button>
   </div>
 </div>
@@ -164,7 +185,7 @@ body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; ba
   <!-- 右侧：加密图片 -->
   <div class="panel" id="rightPanel">
     <div class="panel-header"><span class="dot dot-green"></span>加密图片</div>
-    <div class="drop-zone" id="dropZoneRight" onclick="document.getElementById('fileInputRight').click()" style="cursor:default">
+    <div class="drop-zone" id="dropZoneRight" onclick="document.getElementById('fileInputRight').click()">
       <div class="placeholder" id="rightPlaceholder">
         <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
         <p>加密后的图片将在此显示</p>
@@ -185,13 +206,12 @@ body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; ba
 
 <div class="toast" id="toast"></div>
 
+<script src="constants_300k.js"></script>
 <script>
 // ============================================================
 // 数学常数数字序列
 // ============================================================
-const PI_STR = "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989";
-const E_STR = "27182818284590452353602874713526624977572470936999595749669676277240766303535475945713821785251664274274663919320030599218174135966290435729003342952605956307381323286279434907632338298807531952510190115738341879307021540891499348841675092447614606680822648001684774118537423454424371075390777449920695517027618386062613313845830007520449338265602976067371132007093287091442553582691576399375302072040743213594087563251234296132961894462457247438561880445769630679270072276405467759647093872530906336608532711448493443697063952644568676269745549822806782528266438782954046415436105803756164013477106384590947807934644094798998894859901944062711346569671032072257383793019283843818071506015579936905474498199212239321891764354912586653381684267363683673359554973686851407215420885251681391627212854090068750578845309683916820843214660266544";
-const PHI_STR = "161803398874989484820458683436563811772030917980576286213544862270526046281890244970720720418939113748475408807538689175212663386222353693179318006076672635443338908659593958290563832266131992829026788067520876689250171116962070322210432162695486262963136144381497587012203408058879544547492461856953648006440972011691714755431680753379565646592729587090107673247510741673617640731293407408296936078955861548425264522401764325034820647665809286209127349630339344686862540150116922082618572844938463656586982296368511602048587293667540903645362940044987587632645103416303006747457723187594650454360648040645745132911402786653489893713905471740320470398653232941549170640553086434286647525565674790929578230448974008728785964966930313907531866569468354269564876994036406534155194284246567126219867160221230505464597264377154296020470074412500231758439575295710920916368151602445157948874718";
+// 30万位数学常数数字序列从外部文件加载
 
 function getDigitSequence(key, count) {
   let str;
@@ -200,13 +220,124 @@ function getDigitSequence(key, count) {
   else if (key === 'phi') str = PHI_STR;
   else str = key;
   
-  const needed = Math.max(count * 3, 1000);
+  const needed = Math.max(Math.ceil(count * 1.5), 1000);
   let digits = [];
   for (let i = 0; i < str.length && digits.length < needed; i++) {
     const ch = str[i];
     if (ch >= '0' && ch <= '9') digits.push(parseInt(ch));
   }
   return digits;
+}
+
+// ============================================================
+// PNG tEXt 块读写（替代 piexifjs）
+// ============================================================
+const crcTable = (function() {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) {
+      if (c & 1) c = 0xEDB88320 ^ (c >>> 1);
+      else c = c >>> 1;
+    }
+    table[n] = c;
+  }
+  return table;
+})();
+
+function crc32(buf) {
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) {
+    crc = crcTable[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function readPNGTextChunks(arrayBuffer) {
+  const bytes = new Uint8Array(arrayBuffer);
+  const sig = [137, 80, 78, 71, 13, 10, 26, 10];
+  for (let i = 0; i < 8; i++) {
+    if (bytes[i] !== sig[i]) return {};
+  }
+  
+  const texts = {};
+  let offset = 8;
+  const view = new DataView(arrayBuffer);
+  while (offset + 12 <= arrayBuffer.byteLength) {
+    const length = view.getUint32(offset);
+    const type = String.fromCharCode(
+      bytes[offset + 4], bytes[offset + 5],
+      bytes[offset + 6], bytes[offset + 7]
+    );
+    if (type === 'tEXt') {
+      const dataStart = offset + 8;
+      if (dataStart + length <= arrayBuffer.byteLength) {
+        const data = bytes.slice(dataStart, dataStart + length);
+        const nullIdx = data.indexOf(0);
+        if (nullIdx >= 0) {
+          const keyword = new TextDecoder('latin1').decode(data.slice(0, nullIdx));
+          const text = new TextDecoder('utf-8').decode(data.slice(nullIdx + 1));
+          texts[keyword] = text;
+        }
+      }
+    }
+    if (type === 'IEND') break;
+    offset += 12 + length;
+  }
+  return texts;
+}
+
+function insertPNGTextChunk(arrayBuffer, keyword, text) {
+  const keywordBytes = new TextEncoder().encode(keyword);
+  const textBytes = new TextEncoder().encode(text);
+  const chunkData = new Uint8Array(keywordBytes.length + 1 + textBytes.length);
+  chunkData.set(keywordBytes, 0);
+  chunkData[keywordBytes.length] = 0;
+  chunkData.set(textBytes, keywordBytes.length + 1);
+  
+  const typeBytes = new TextEncoder().encode('tEXt');
+  const crcInput = new Uint8Array(4 + chunkData.length);
+  crcInput.set(typeBytes, 0);
+  crcInput.set(chunkData, 4);
+  const crcVal = crc32(crcInput);
+  
+  const chunk = new Uint8Array(12 + chunkData.length);
+  const chunkView = new DataView(chunk.buffer);
+  chunkView.setUint32(0, chunkData.length);
+  chunk.set(typeBytes, 4);
+  chunk.set(chunkData, 8);
+  chunkView.setUint32(8 + chunkData.length, crcVal);
+  
+  const src = new Uint8Array(arrayBuffer);
+  const ihdrLength = new DataView(arrayBuffer).getUint32(8) + 12;
+  const insertPos = 8 + ihdrLength;
+  
+  const result = new Uint8Array(src.length + chunk.length);
+  result.set(src.slice(0, insertPos), 0);
+  result.set(chunk, insertPos);
+  result.set(src.slice(insertPos), insertPos + chunk.length);
+  
+  return result.buffer;
+}
+
+function dataURLToArrayBuffer(dataURL) {
+  const base64 = dataURL.split(',')[1];
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+function arrayBufferToDataURL(arrayBuffer) {
+  const bytes = new Uint8Array(arrayBuffer);
+  const chunks = [];
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    chunks.push(String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunkSize, bytes.length))));
+  }
+  return 'data:image/png;base64,' + btoa(chunks.join(''));
 }
 
 // ============================================================
@@ -331,12 +462,164 @@ function getTraversalOrder(rows, cols, start, order) {
 // ============================================================
 // 全局状态
 // ============================================================
-let originalImageData = null;  // 原始图片的ImageData
-let originalCanvas = null;     // 原始图片canvas
-let encryptedDataURL = null;   // 加密图片的DataURL
-let encryptedCanvas = null;    // 加密图片canvas
+let currentMode = null;       // null | 'encrypt' | 'decrypt'
+let originalImageData = null; // 原始图片的ImageData
+let originalCanvas = null;    // 原始图片canvas
+let encryptedDataURL = null;  // 加密图片的DataURL（含tEXt元数据）
+let encryptedCanvas = null;   // 加密图片canvas
+let encryptedArrayBuffer = null; // 加密图片的ArrayBuffer（用于读取元数据）
 let origFileName = '';
 let origFileExt = 'jpg';
+let decryptedParamStr = '';   // 从加密图片中解析的参数字符串
+let decryptedDataURL = null;   // 解密后图片的DataURL（用于保存）
+let decryptedCanvas = null;     // 解密后图片的canvas（用于格式转换保存）
+
+// ============================================================
+// 参数解析与填充
+// ============================================================
+function parseParamStr(paramStr) {
+  // 格式: padWxpadH_blockWxblockH_extractStartExtractOrder_outputStartOutputOrder.origFormat.sequenceKey
+  const parts = paramStr.split('_');
+  if (parts.length < 4) return null;
+  
+  const [padW, padH] = parts[0].split('x').map(Number);
+  const [blockW, blockH] = parts[1].split('x').map(Number);
+  const extractStart = parseInt(parts[2][0]);
+  const extractOrder = parseInt(parts[2][1]);
+  const restParts = parts[3].split('.');
+  const outputStart = parseInt(restParts[0][0]);
+  const outputOrder = parseInt(restParts[0][1]);
+  const origFormat = restParts[1] || 'jpg';
+  const sequenceKey = restParts[2] || 'pi';
+  
+  return { padW, padH, blockW, blockH, extractStart, extractOrder, outputStart, outputOrder, origFormat, sequenceKey };
+}
+
+function fillParamsFromParsed(params) {
+  document.getElementById('blockW').value = params.blockW;
+  document.getElementById('blockH').value = params.blockH;
+  document.getElementById('extractStart').value = params.extractStart;
+  document.getElementById('extractOrder').value = params.extractOrder;
+  document.getElementById('outputStart').value = params.outputStart;
+  document.getElementById('outputOrder').value = params.outputOrder;
+  
+  // 序列键处理
+  const seqSelect = document.getElementById('sequenceKey');
+  const knownKeys = ['pi', 'e', 'phi'];
+  if (knownKeys.includes(params.sequenceKey)) {
+    seqSelect.value = params.sequenceKey;
+    document.getElementById('customSeqGroup').classList.add('hidden');
+  } else {
+    seqSelect.value = 'custom';
+    document.getElementById('customSeqGroup').classList.remove('hidden');
+    document.getElementById('customSeq').value = params.sequenceKey;
+  }
+  
+  origFileExt = params.origFormat;
+}
+
+// ============================================================
+// UI 状态管理
+// ============================================================
+function updateUI() {
+  const isEncryptMode = currentMode === 'encrypt';
+  const isDecryptMode = currentMode === 'decrypt';
+  
+  // 模式徽章
+  const badge = document.getElementById('modeBadge');
+  const modeText = document.getElementById('modeText');
+  badge.className = 'mode-badge ' + (isEncryptMode ? 'encrypt-mode' : isDecryptMode ? 'decrypt-mode' : 'idle-mode');
+  modeText.textContent = isEncryptMode ? '加密模式' : isDecryptMode ? '解密模式' : '待选择';
+  
+  // 重置按钮
+  document.getElementById('btnReset').classList.toggle('hidden', !currentMode);
+  
+  // 面板互斥 — 仅在未生成结果时禁用对侧，结果生成后移除disabled-panel以避免图片半透明
+  const leftPanel = document.getElementById('leftPanel');
+  const rightPanel = document.getElementById('rightPanel');
+  const leftHasResult = !document.getElementById('leftPreview').classList.contains('hidden');
+  const rightHasResult = !document.getElementById('rightPreview').classList.contains('hidden');
+  // 加密模式下：右侧无结果时禁用左侧面板的可交互区域
+  leftPanel.classList.toggle('disabled-panel', isDecryptMode && !leftHasResult);
+  rightPanel.classList.toggle('disabled-panel', isEncryptMode && !rightHasResult);
+  
+  // 文件输入禁用
+  document.getElementById('fileInput').disabled = isDecryptMode;
+  document.getElementById('fileInputRight').disabled = isEncryptMode;
+  
+  // 参数栏只读状态
+  const paramIds = ['blockW', 'blockH', 'extractStart', 'extractOrder', 'outputStart', 'outputOrder', 'sequenceKey', 'customSeq'];
+  paramIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (isDecryptMode) {
+      el.disabled = true;
+    } else {
+      el.disabled = false;
+      el.style.background = '';
+    }
+  });
+  
+  // 按钮状态
+  document.getElementById('btnEncrypt').disabled = !isEncryptMode || !originalImageData;
+  document.getElementById('btnDecrypt').disabled = !isDecryptMode || !encryptedCanvas;
+
+  // 保存按钮：加密模式保存加密图，解密模式保存解密图
+  const btnSave = document.getElementById('btnSave');
+  if (isDecryptMode && decryptedDataURL) {
+    btnSave.disabled = false;
+    btnSave.textContent = '保存解密图';
+  } else if (encryptedDataURL) {
+    btnSave.disabled = false;
+    btnSave.textContent = '保存加密图';
+  } else {
+    btnSave.disabled = true;
+    btnSave.textContent = '保存图片';
+  }
+}
+
+function resetAll() {
+  currentMode = null;
+  originalImageData = null;
+  originalCanvas = null;
+  encryptedDataURL = null;
+  encryptedCanvas = null;
+  encryptedArrayBuffer = null;
+  origFileName = '';
+  origFileExt = 'jpg';
+  decryptedParamStr = '';
+  decryptedDataURL = null;
+  decryptedCanvas = null;
+  
+  // 重置左侧
+  document.getElementById('leftImg').src = '';
+  document.getElementById('leftPlaceholder').classList.remove('hidden');
+  document.getElementById('leftPreview').classList.add('hidden');
+  document.getElementById('leftInfo').textContent = '尚未加载图片';
+  
+  // 重置右侧
+  document.getElementById('rightImg').src = '';
+  document.getElementById('rightPlaceholder').classList.remove('hidden');
+  document.getElementById('rightPreview').classList.add('hidden');
+  document.getElementById('rightInfo').textContent = '尚未生成加密图片';
+  
+  // 重置参数为默认值
+  document.getElementById('blockW').value = 8;
+  document.getElementById('blockH').value = 8;
+  document.getElementById('extractStart').value = '1';
+  document.getElementById('extractOrder').value = '1';
+  document.getElementById('outputStart').value = '1';
+  document.getElementById('outputOrder').value = '3';
+  document.getElementById('sequenceKey').value = 'pi';
+  document.getElementById('customSeq').value = '';
+  document.getElementById('customSeqGroup').classList.add('hidden');
+  
+  // 重置文件输入
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileInputRight').value = '';
+  
+  updateUI();
+  showToast('已重置', 'info');
+}
 
 // ============================================================
 // UI 事件处理
@@ -345,39 +628,158 @@ document.getElementById('sequenceKey').addEventListener('change', function() {
   document.getElementById('customSeqGroup').classList.toggle('hidden', this.value !== 'custom');
 });
 
-// 拖拽处理
+// 拖拽处理 - 左侧
 const dropZone = document.getElementById('dropZone');
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
 dropZone.addEventListener('drop', (e) => {
   e.preventDefault();
   dropZone.classList.remove('drag-over');
+  if (currentMode === 'decrypt') return; // 解密模式下禁止
   if (e.dataTransfer.files.length > 0) loadImage(e.dataTransfer.files[0], 'left');
 });
 
+// 拖拽处理 - 右侧
 const dropZoneRight = document.getElementById('dropZoneRight');
 dropZoneRight.addEventListener('dragover', (e) => { e.preventDefault(); dropZoneRight.classList.add('drag-over'); });
 dropZoneRight.addEventListener('dragleave', () => dropZoneRight.classList.remove('drag-over'));
 dropZoneRight.addEventListener('drop', (e) => {
   e.preventDefault();
   dropZoneRight.classList.remove('drag-over');
+  if (currentMode === 'encrypt') return; // 加密模式下禁止
   if (e.dataTransfer.files.length > 0) loadImage(e.dataTransfer.files[0], 'right');
 });
 
 function handleFileSelect(event) {
+  if (currentMode === 'decrypt') return;
   if (event.target.files.length > 0) loadImage(event.target.files[0], 'left');
 }
 
 function handleFileSelectRight(event) {
+  if (currentMode === 'encrypt') return;
   if (event.target.files.length > 0) loadImage(event.target.files[0], 'right');
 }
 
+function suggestBlockSize(w, h) {
+  const seqKey = document.getElementById('sequenceKey').value === 'custom' 
+    ? document.getElementById('customSeq').value 
+    : document.getElementById('sequenceKey').value;
+  // Only suggest for known keys (pi/e/phi have 300K digits)
+  const knownKeys = { pi: true, e: true, phi: true };
+  if (!knownKeys[seqKey]) return;
+  
+  const maxDigits = 300000; // 30万位
+  const maxBlocks = Math.floor(maxDigits / 1.5);
+  
+  // Try block sizes: 8, 16, 32, 64
+  const blockSizes = [8, 16, 32, 64];
+  let suggestedW = 8, suggestedH = 8;
+  
+  for (const bs of blockSizes) {
+    const padW = (bs - w % bs) % bs;
+    const padH = (bs - h % bs) % bs;
+    const m = Math.floor((h + padH) / bs);
+    const n = Math.floor((w + padW) / bs);
+    const total = m * n;
+    if (total <= maxBlocks) {
+      suggestedW = bs;
+      suggestedH = bs;
+      break; // Use the smallest block size that fits
+    }
+  }
+  
+  const curW = parseInt(document.getElementById('blockW').value) || 8;
+  const curH = parseInt(document.getElementById('blockH').value) || 8;
+  
+  // Check if current block size is sufficient
+  const padW = (curW - w % curW) % curW;
+  const padH = (curH - h % curH) % curH;
+  const m = Math.floor((h + padH) / curH);
+  const n = Math.floor((w + padW) / curW);
+  const total = m * n;
+  
+  if (total > maxBlocks && suggestedW !== curW) {
+    document.getElementById('blockW').value = suggestedW;
+    document.getElementById('blockH').value = suggestedH;
+    showToast(`图片较大，块大小已自动调整为 ${suggestedW}x${suggestedH}（${total}块 > ${maxBlocks}上限）`, 'info');
+  } else if (total > maxBlocks) {
+    showToast(`当前块大小下图片块数(${total})超出序列容量(${maxBlocks})，请增大块大小`, 'error');
+  }
+}
+
 function loadImage(file, side) {
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const img = new Image();
-    img.onload = function() {
-      if (side === 'left') {
+  // 如果当前已有模式且与请求方向不匹配，先重置
+  if (currentMode && ((side === 'left' && currentMode !== 'encrypt') || (side === 'right' && currentMode !== 'decrypt'))) {
+    resetAll();
+  }
+  
+  if (side === 'right') {
+    // 右侧加载加密图片 — 需要读取ArrayBuffer以解析PNG元数据
+    const arrayBufferReader = new FileReader();
+    arrayBufferReader.onload = function(abEvent) {
+      const arrayBuffer = abEvent.target.result;
+      encryptedArrayBuffer = arrayBuffer;
+      
+      // 解析PNG tEXt块
+      const textChunks = readPNGTextChunks(arrayBuffer);
+      let paramStr = textChunks['Parameters'] || textChunks['parameters'] || '';
+      
+      // 同时读取为DataURL以显示图片
+      const dataUrlReader = new FileReader();
+      dataUrlReader.onload = function(duEvent) {
+        const img = new Image();
+        img.onload = function() {
+          encryptedCanvas = document.createElement('canvas');
+          encryptedCanvas.width = img.width;
+          encryptedCanvas.height = img.height;
+          const ctx = encryptedCanvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          
+          encryptedDataURL = duEvent.target.result;
+          
+          document.getElementById('rightImg').src = duEvent.target.result;
+          document.getElementById('rightPlaceholder').classList.add('hidden');
+          document.getElementById('rightPreview').classList.remove('hidden');
+          
+          if (paramStr) {
+            decryptedParamStr = paramStr;
+            const parsed = parseParamStr(paramStr);
+            if (parsed) {
+              fillParamsFromParsed(parsed);
+              document.getElementById('rightInfo').textContent = 
+                `加密图片: ${img.width} \u00D7 ${img.height} | 参数: ${paramStr}`;
+              
+              // 切换到解密模式
+              currentMode = 'decrypt';
+              updateUI();
+              showToast('加密图片加载成功，已自动读取解密参数', 'success');
+            } else {
+              document.getElementById('rightInfo').textContent = 
+                `加密图片: ${img.width} \u00D7 ${img.height} | 参数格式无法识别: ${paramStr}`;
+              currentMode = 'decrypt';
+              updateUI();
+              showToast('加密图片加载成功，但参数格式无法自动识别', 'error');
+            }
+          } else {
+            document.getElementById('rightInfo').textContent = 
+              `加密图片: ${img.width} \u00D7 ${img.height} | 未找到加密参数元数据`;
+            currentMode = 'decrypt';
+            updateUI();
+            showToast('加密图片加载成功，但未找到加密参数', 'error');
+          }
+        };
+        img.src = duEvent.target.result;
+      };
+      dataUrlReader.readAsDataURL(file);
+    };
+    arrayBufferReader.readAsArrayBuffer(file);
+    
+  } else {
+    // 左侧加载原始图片
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
         originalCanvas = document.createElement('canvas');
         originalCanvas.width = img.width;
         originalCanvas.height = img.height;
@@ -388,63 +790,38 @@ function loadImage(file, side) {
         document.getElementById('leftImg').src = e.target.result;
         document.getElementById('leftPlaceholder').classList.add('hidden');
         document.getElementById('leftPreview').classList.remove('hidden');
-        document.getElementById('leftInfo').textContent = `图片尺寸: ${img.width} × ${img.height} | 文件: ${file.name}`;
+        document.getElementById('leftInfo').textContent = `图片尺寸: ${img.width} \u00D7 ${img.height} | 文件: ${file.name}`;
         
         origFileName = file.name.replace(/\.[^.]+$/, '');
         origFileExt = file.name.split('.').pop().toLowerCase();
         if (origFileExt === 'jpeg') origFileExt = 'jpg';
         
-        showToast('图片加载成功', 'success');
-      } else {
-        // 右侧加载加密图片
-        encryptedCanvas = document.createElement('canvas');
-        encryptedCanvas.width = img.width;
-        encryptedCanvas.height = img.height;
-        const ctx = encryptedCanvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
+        // 清除右侧加密图片状态（切换到加密模式）
+        encryptedDataURL = null;
+        encryptedCanvas = null;
+        encryptedArrayBuffer = null;
+        document.getElementById('rightImg').src = '';
+        document.getElementById('rightPlaceholder').classList.remove('hidden');
+        document.getElementById('rightPreview').classList.add('hidden');
+        document.getElementById('rightInfo').textContent = '尚未生成加密图片';
+        document.getElementById('fileInputRight').value = '';
         
-        // 尝试从EXIF读取参数
-        try {
-          const dataUrl = e.target.result;
-          const exifObj = piexif.load(dataUrl);
-          const userComment = exifObj['Exif'][piexif.ExifIFD.UserComment];
-          if (userComment) {
-            let paramStr;
-            if (typeof userComment === 'string') {
-              paramStr = userComment;
-            } else {
-              // ArrayBuffer or Uint8Array
-              const bytes = new Uint8Array(userComment);
-              // Skip ASCII\x00\x00\x00 prefix (8 bytes)
-              const start = bytes[0] === 0x41 ? 8 : 0;
-              paramStr = new TextDecoder('ascii').decode(bytes.slice(start));
-            }
-            document.getElementById('rightInfo').textContent = `加密图片: ${img.width} × ${img.height} | 参数: ${paramStr}`;
-          } else {
-            document.getElementById('rightInfo').textContent = `加密图片: ${img.width} × ${img.height} | 未找到EXIF参数`;
-          }
-        } catch (ex) {
-          document.getElementById('rightInfo').textContent = `加密图片: ${img.width} × ${img.height}`;
-        }
-        
-        encryptedDataURL = e.target.result;
-        document.getElementById('rightImg').src = e.target.result;
-        document.getElementById('rightPlaceholder').classList.add('hidden');
-        document.getElementById('rightPreview').classList.remove('hidden');
-        
-        showToast('加密图片加载成功', 'success');
-      }
+        currentMode = 'encrypt';
+        suggestBlockSize(img.width, img.height);
+        updateUI();
+        showToast('原始图片加载成功，可设置参数后点击加密', 'success');
+      };
+      img.src = e.target.result;
     };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
+    reader.readAsDataURL(file);
+  }
 }
 
 function showToast(msg, type) {
   const toast = document.getElementById('toast');
   toast.textContent = msg;
   toast.className = 'toast toast-' + type + ' show';
-  setTimeout(() => toast.classList.remove('show'), 2500);
+  setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
 // ============================================================
@@ -468,14 +845,12 @@ async function doEncrypt() {
   showProgress('right', true, 0);
   document.getElementById('btnEncrypt').disabled = true;
   
-  // 使用setTimeout让UI更新
   await new Promise(r => setTimeout(r, 50));
   
   try {
     const origW = originalImageData.width;
     const origH = originalImageData.height;
     
-    // Padding
     const padW = (blockW - origW % blockW) % blockW;
     const padH = (blockH - origH % blockH) % blockH;
     const paddedW = origW + padW;
@@ -487,7 +862,6 @@ async function doEncrypt() {
     
     showProgress('right', true, 10);
     
-    // 创建填充后的canvas
     const paddedCanvas = document.createElement('canvas');
     paddedCanvas.width = paddedW;
     paddedCanvas.height = paddedH;
@@ -499,9 +873,8 @@ async function doEncrypt() {
     
     showProgress('right', true, 20);
     
-    // 提取子图块
     const extractCells = getTraversalOrder(m, n, extractStart, extractOrder);
-    const arrayA = []; // 每个元素是ImageData
+    const arrayA = [];
     
     for (let i = 0; i < extractCells.length; i++) {
       const [r, c] = extractCells[i];
@@ -518,7 +891,6 @@ async function doEncrypt() {
     
     showProgress('right', true, 40);
     
-    // 数字序列驱动填充
     const digits = getDigitSequence(seqKey, total);
     const outputCells = getTraversalOrder(m, n, outputStart, outputOrder);
     
@@ -559,7 +931,6 @@ async function doEncrypt() {
     
     showProgress('right', true, 80);
     
-    // 拼接加密图片
     encryptedCanvas = document.createElement('canvas');
     encryptedCanvas.width = paddedW;
     encryptedCanvas.height = paddedH;
@@ -575,39 +946,23 @@ async function doEncrypt() {
     
     showProgress('right', true, 90);
     
-    // 保存加密图片（含EXIF）
+    // 使用PNG tEXt块保存加密参数
     const paramStr = `${padW}x${padH}_${blockW}x${blockH}_${extractStart}${extractOrder}_${outputStart}${outputOrder}.${origFileExt}.${seqKey}`;
     
-    // 生成带EXIF的DataURL
-    let dataURL = encryptedCanvas.toDataURL('image/png');
-    try {
-      const exifObj = {"0th": {}, "Exif": {}, "GPS": {}, "1st": {}, "Interop": {}};
-      const userCommentBytes = new Uint8Array(8 + paramStr.length);
-      // ASCII prefix
-      userCommentBytes[0] = 0x41; userCommentBytes[1] = 0x53; userCommentBytes[2] = 0x43;
-      userCommentBytes[3] = 0x49; userCommentBytes[4] = 0x49; userCommentBytes[5] = 0x00;
-      userCommentBytes[6] = 0x00; userCommentBytes[7] = 0x00;
-      for (let i = 0; i < paramStr.length; i++) {
-        userCommentBytes[8 + i] = paramStr.charCodeAt(i);
-      }
-      exifObj["Exif"][piexif.ExifIFD.UserComment] = userCommentBytes.buffer;
-      const exifBytes = piexif.dump(exifObj);
-      dataURL = piexif.insert(exifBytes, dataURL);
-    } catch (ex) {
-      console.warn('EXIF写入失败，将保存不含EXIF的图片:', ex);
-    }
+    let rawPngBuffer = dataURLToArrayBuffer(encryptedCanvas.toDataURL('image/png'));
+    rawPngBuffer = insertPNGTextChunk(rawPngBuffer, 'Parameters', paramStr);
+    encryptedDataURL = arrayBufferToDataURL(rawPngBuffer);
+    encryptedArrayBuffer = rawPngBuffer;
     
-    encryptedDataURL = dataURL;
-    
-    // 在右侧显示
-    document.getElementById('rightImg').src = dataURL;
+    document.getElementById('rightImg').src = encryptedDataURL;
     document.getElementById('rightPlaceholder').classList.add('hidden');
     document.getElementById('rightPreview').classList.remove('hidden');
-    document.getElementById('rightInfo').textContent = `加密图片: ${paddedW} × ${paddedH} | 参数: ${paramStr}`;
-    document.getElementById('btnSave').disabled = false;
+    document.getElementById('rightInfo').textContent = `加密图片: ${paddedW} \u00D7 ${paddedH} | 参数: ${paramStr}`;
     
     showProgress('right', false);
-    showToast('加密完成！', 'success');
+    showToast('加密完成！可点击"保存加密图"下载', 'success');
+    // 移除右侧面板的disabled-panel以避免图片半透明
+    document.getElementById('rightPanel').classList.remove('disabled-panel');
     
   } catch (e) {
     showProgress('right', false);
@@ -615,14 +970,14 @@ async function doEncrypt() {
     console.error(e);
   }
   
-  document.getElementById('btnEncrypt').disabled = false;
+  updateUI();
 }
 
 // ============================================================
 // 解密
 // ============================================================
 async function doDecrypt() {
-  if (!encryptedCanvas) { showToast('请先加载或生成加密图片', 'error'); return; }
+  if (!encryptedCanvas) { showToast('请先加载加密图片', 'error'); return; }
   
   showProgress('left', true, 0);
   document.getElementById('btnDecrypt').disabled = true;
@@ -630,37 +985,32 @@ async function doDecrypt() {
   await new Promise(r => setTimeout(r, 50));
   
   try {
-    // 从EXIF中读取解密参数
+    // 从PNG tEXt块中读取解密参数
     let paramStr = '';
-    try {
-      const exifObj = piexif.load(encryptedDataURL);
-      const userComment = exifObj['Exif'][piexif.ExifIFD.UserComment];
-      if (userComment) {
-        if (typeof userComment === 'string') {
-          paramStr = userComment;
-        } else {
-          const bytes = new Uint8Array(userComment);
-          const start = bytes[0] === 0x41 ? 8 : 0;
-          paramStr = new TextDecoder('ascii').decode(bytes.slice(start));
-        }
-      }
-    } catch (ex) {
-      throw new Error('无法读取EXIF数据: ' + ex.message);
+    
+    // 优先从ArrayBuffer读取（加载的文件）
+    if (encryptedArrayBuffer) {
+      const textChunks = readPNGTextChunks(encryptedArrayBuffer);
+      paramStr = textChunks['Parameters'] || textChunks['parameters'] || '';
     }
     
-    if (!paramStr) throw new Error('加密图片中未找到解密参数');
+    // 如果ArrayBuffer没有，尝试从DataURL中读取
+    if (!paramStr && encryptedDataURL) {
+      try {
+        const ab = dataURLToArrayBuffer(encryptedDataURL);
+        const textChunks = readPNGTextChunks(ab);
+        paramStr = textChunks['Parameters'] || textChunks['parameters'] || '';
+      } catch(ex) {
+        console.warn('从DataURL解析PNG元数据失败:', ex);
+      }
+    }
     
-    // 解析参数
-    const parts = paramStr.split('_');
-    const [padW, padH] = parts[0].split('x').map(Number);
-    const [blockW, blockH] = parts[1].split('x').map(Number);
-    const extractStart = parseInt(parts[2][0]);
-    const extractOrder = parseInt(parts[2][1]);
-    const restParts = parts[3].split('.');
-    const outputStart = parseInt(restParts[0][0]);
-    const outputOrder = parseInt(restParts[0][1]);
-    const origFormat = restParts[1];
-    const sequenceKey = restParts[2];
+    if (!paramStr) throw new Error('加密图片中未找到解密参数（PNG tEXt块中无Parameters字段）');
+    
+    const params = parseParamStr(paramStr);
+    if (!params) throw new Error('参数格式无法解析: ' + paramStr);
+    
+    const { padW, padH, blockW, blockH, extractStart, extractOrder, outputStart, outputOrder, sequenceKey } = params;
     
     showProgress('left', true, 10);
     
@@ -740,10 +1090,10 @@ async function doDecrypt() {
     // 逆提取：将arrayA按提取顺序恢复到原始位置
     const extractCells = getTraversalOrder(m, n, extractStart, extractOrder);
     
-    const decryptedCanvas = document.createElement('canvas');
-    decryptedCanvas.width = paddedW;
-    decryptedCanvas.height = paddedH;
-    const decCtx = decryptedCanvas.getContext('2d');
+    const decTempCanvas = document.createElement('canvas');
+    decTempCanvas.width = paddedW;
+    decTempCanvas.height = paddedH;
+    const decCtx = decTempCanvas.getContext('2d');
     decCtx.fillStyle = '#000000';
     decCtx.fillRect(0, 0, paddedW, paddedH);
     
@@ -759,7 +1109,6 @@ async function doDecrypt() {
     const origH = paddedH - padH;
     const finalData = decCtx.getImageData(0, 0, origW, origH);
     
-    // 在左侧显示
     const leftCanvas = document.createElement('canvas');
     leftCanvas.width = origW;
     leftCanvas.height = origH;
@@ -768,13 +1117,19 @@ async function doDecrypt() {
     originalImageData = finalData;
     originalCanvas = leftCanvas;
     
-    document.getElementById('leftImg').src = leftCanvas.toDataURL('image/png');
+    // Store decrypted data in original format
+    const decMime = origFileExt === 'jpg' ? 'image/jpeg' : origFileExt === 'webp' ? 'image/webp' : 'image/png';
+    decryptedDataURL = leftCanvas.toDataURL(decMime, 0.95);
+    decryptedCanvas = leftCanvas; // Keep canvas for re-export if needed
+    document.getElementById('leftImg').src = decryptedDataURL;
     document.getElementById('leftPlaceholder').classList.add('hidden');
     document.getElementById('leftPreview').classList.remove('hidden');
-    document.getElementById('leftInfo').textContent = `解密图片: ${origW} × ${origH} | 参数: ${paramStr}`;
+    document.getElementById('leftInfo').textContent = `解密图片: ${origW} \u00D7 ${origH} | 参数: ${paramStr}`;
     
     showProgress('left', false);
-    showToast('解密完成！', 'success');
+    showToast('解密完成！可点击"保存解密图"下载', 'success');
+    // 移除左侧面板的disabled-panel以避免图片半透明
+    document.getElementById('leftPanel').classList.remove('disabled-panel');
     
   } catch (e) {
     showProgress('left', false);
@@ -782,21 +1137,38 @@ async function doDecrypt() {
     console.error(e);
   }
   
-  document.getElementById('btnDecrypt').disabled = false;
+  updateUI();
 }
 
 // ============================================================
-// 保存加密图片
+// 保存图片
 // ============================================================
 function doSave() {
-  if (!encryptedDataURL) { showToast('没有可保存的加密图片', 'error'); return; }
+  const isDecryptMode = currentMode === 'decrypt';
   
-  const link = document.createElement('a');
-  link.download = (origFileName || 'encrypted') + '_encrypted.png';
-  link.href = encryptedDataURL;
-  link.click();
-  
-  showToast('加密图片已保存', 'success');
+  if (isDecryptMode && decryptedDataURL) {
+    const ext = origFileExt || 'png';
+    const mimeType = ext === 'jpg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : ext === 'bmp' ? 'image/bmp' : 'image/png';
+    const fileName = (origFileName || 'decrypted') + '_decrypted.' + ext;
+    const link = document.createElement('a');
+    link.download = fileName;
+    if (decryptedCanvas && mimeType !== 'image/png') {
+      link.href = decryptedCanvas.toDataURL(mimeType, 0.95);
+    } else {
+      link.href = decryptedDataURL;
+    }
+    link.click();
+    showToast('解密图片已保存为 ' + ext.toUpperCase() + ' 格式', 'success');
+  } else if (encryptedDataURL) {
+    // 保存加密图片（始终为PNG）
+    const link = document.createElement('a');
+    link.download = (origFileName || 'encrypted') + '_encrypted.png';
+    link.href = encryptedDataURL;
+    link.click();
+    showToast('加密图片已保存', 'success');
+  } else {
+    showToast('没有可保存的图片', 'error');
+  }
 }
 
 // ============================================================
@@ -808,6 +1180,9 @@ function showProgress(side, show, pct) {
   document.getElementById(id).classList.toggle('hidden', !show);
   if (show) document.getElementById(fillId).style.width = pct + '%';
 }
+
+// 初始化UI
+updateUI();
 </script>
 </body>
 </html>
